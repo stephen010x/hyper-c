@@ -1,164 +1,41 @@
+// Reference
+// https://en.cppreference.com/w/c/language.html
+
 
 #include <stdio.h>
 #include <stbool.h>
 #include <string.h>
 
 
+#include "hyper-c.h"
 
-#define MAX_TOKEN_SIZE      256
-#define MAX_STATEMENT_SIZE  1024
 
 
 
 const char *test_code = "
-    //#include <stdio.h>
-	//#include <string.h>
-	
-	// Function prototype
-	void swap(int *x, int *y);
-	
-	int main() {
-	    // Basic variable declaration and initialization
-	    int a = 5, b = 10;
-	    char str[50];
-	
-	    // Control structure: if-else
-	    if (a < b) {
-	        printf(\"a is less than b\\n\");
-	    } else {
-	        printf(\"a is not less than b\\n\");
-	    }
-	
-	    // Loop: for
-	    printf(\"Counting down: \");
-	    for (int i = 5; i > 0; i--) {
-	        printf(\"%d \", i);
-	    }
-	    printf(\"\\n\");
-	
-	    // Arrays and user input
-	    printf(\"Enter a string: \");
-	    fgets(str, 50, stdin);  // Read line including spaces
-	
-	    // Remove newline character, if present
-	    size_t len = strlen(str);
-	    if (len > 0 && str[len-1] == '\\n') {
-	        str[len-1] = '\\0';
-	    }
-	
-	    printf(\"You entered: %s\\n\", str);
-	
-	    // Pointers and function call
-	    printf(\"Values before swap: a = %d, b = %d\\n\", a, b);
-	    swap(&a, &b);
-	    printf(\"Values after swap: a = %d, b = %d\\n\", a, b);
-	
-	    // Control structure: switch-case
-	    char letter = 'A';
-	    switch (letter) {
-	        case 'A':
-	            printf(\"Letter is A\\n\");
-	            break;
-	        case 'B':
-	            printf(\"Letter is B\\n\");
-	            break;
-	        default:
-	            printf(\"Letter is not A or B\\n\");
-	            break;
-	    }
-	
-	    return 0;
-	}
-	
-	// Function definition with pointers
-	void swap(int *x, int *y) {
-	    int temp = *x;
-	    *x = *y;
-	    *y = temp;
-	}
+
 ";
 
 
-
-/*enum token_types {
-    TOKEN_UNDEFINED = 0,
-    
-    TOKEN_TYPE_SPECIFIER,
-    TOKEN_STORAGE_CLASS_SPECIFIER,
-    TOKEN_TYPE_QUALIFIER,
-    TOKEN_CONTROL_STATEMENT,
-    TOKEN_FUNCTION_SPECIFIER,
-    TOKEN_STRUCTURE_KEYWORD,
-    TOKEN_MISC_KEYWORD,
-    
-    TOKEN_OPENING_BRACE,
-    TOKEN_CLOSING_BRACE,
-    TOKEN_OPENING_PARENTH,
-    TOKEN_CLOSING_PARENTH,
-    TOKEN_OPENING_BRACKET,
-    TOKEN_CLOSING_BRACKET,
-
-    TOKEN_ABSTRACT,         // for symbols and special characters
-    TOKEN_STRING,
-    TOKEN_VALUE,            // for chars, ints, floats, etc with a value.
-};*/
+/*
+	- Keywords
+	- Identifiers
+	- Literals
+	- Operators (e.g., `+`, `-`, `*`, `/`, etc.)
+	- Punctuation (e.g., `;`, `,`, `()`, `{}`, etc.)
+*/
 
 
-
-char delimiters[] = {' ', '\t', '\n'};
-
-
-//token_def_t token_defs[] = {
-/*token_t token_defs[] = {
-    {TOKEN_TYPE_SPECIFIER, "void"},
-    {TOKEN_TYPE_SPECIFIER, "char"},
-    {TOKEN_TYPE_SPECIFIER, "int"},
-    {TOKEN_TYPE_SPECIFIER, "float"},
-    {TOKEN_TYPE_SPECIFIER, "double"},
-    {TOKEN_TYPE_SPECIFIER, "short"},
-    {TOKEN_TYPE_SPECIFIER, "long"},
-    {TOKEN_TYPE_SPECIFIER, "signed"},
-    {TOKEN_TYPE_SPECIFIER, "unsigned"},
-
-    {TOKEN_STORAGE_CLASS_SPECIFIER, "register"},
-    {TOKEN_STORAGE_CLASS_SPECIFIER, "static"},
-    {TOKEN_STORAGE_CLASS_SPECIFIER, "extern"},
-    
-    {TOKEN_TYPE_QUALIFIER, "const"},
-    {TOKEN_TYPE_QUALIFIER, "volatile"},
-    {TOKEN_TYPE_QUALIFIER, "restrict"},
-    
-    {TOKEN_CONTROL_STATEMENT, "if"},
-    {TOKEN_CONTROL_STATEMENT, "else"},
-    {TOKEN_CONTROL_STATEMENT, "switch"},
-    {TOKEN_CONTROL_STATEMENT, "for"},
-    {TOKEN_CONTROL_STATEMENT, "while"},
-    {TOKEN_CONTROL_STATEMENT, "do"},
-    {TOKEN_CONTROL_STATEMENT, "break"},
-    {TOKEN_CONTROL_STATEMENT, "continue"},
-    {TOKEN_CONTROL_STATEMENT, "goto"},
-    
-    {TOKEN_FUNCTION_SPECIFIER, "inline"},
-    
-    {TOKEN_FUNCTION_SPECIFIER, "inline"},
-};*/
+/*
+    Alright. This is how I think tokens can be parsed.
+    First, we see if it matches one of the special strings that can be recognized without delimiters.
+    Next we apply delimiters, including the special string matchers as delimiters, in order to extract a token.
+    Perhaps also add some reserved tokens as well
+    And then we process the token to see what kind of token it is, if it wasn't already recognized.
+*/
 
 
 // maybe instead of assigning token groups, I should just assign token names.
-
-
-token_t delimited_tokens[] = {
-    {TOKEN_VOID, "void"},
-    {TOKEN_CHAR, "char"},
-    {TOKEN_INT,  "int"},
-};
-
-token_t packed_tokens[] = {
-    {TOKEN_ASTERISK,   "*" },
-    {TOKEN_ASSIGNMENT, "=" },
-    {TOKEN_EQUALS,     "=="},
-    {TOKEN_ARROW,      "->"},
-};
 
 
 
@@ -167,41 +44,6 @@ token_t packed_tokens[] = {
 // group parsing might work. For instance,
 // int temp = *x;
 // int temp=*x;
-
-
-// scopes will be maintained in the stack when parsing, so no allocations for 
-// this struct are needed
-typedef struct scope_state {
-    struct scope_state *parent;
-} scope_state_t;
-
-
-typedef struct {
-    //char *buffer;   // instead of allocating a buffer, we just slice the original string
-    //int   blen;
-    scope_state_t *root_scope;
-    scope_state_t *scope;       // current scope
-} state_t;
-
-
-
-typedef struct {
-    int   type;
-    union {
-        char *name;
-        //char  text[MAX_TOKEN_SIZE];
-        struct {
-            char *string;
-            int   strlen;
-        };
-    }
-} token_t;
-
-
-/*typedef struct {
-    int   type;
-    char *name;
-} token_def_t;*/
 
 
 
@@ -222,6 +64,22 @@ int main(int argc, char *argv[]) {
 }
 
 
+/*
+    So statements should have sub-statements. Because otherwise a function will all be considered
+    One giant statement, and will easily exceed the token limit.
+    So instead I should create a token type that points to another statement.
+    Generally speaking, there should be no co-dependancy between each statement that 
+    isn't covered by the state machine structure.
+
+    And then in special cases like switch case, I can just process them independantly, and then
+    When it comes to compilation, I can just have the switch search the sub-statement for the cases.
+    Alternatively I can make it a flag in the global state, so that it can be done with the cases
+    Rather than the switch.
+    This way we can also just process assembly as we go rather than at the end of tokenizing the function.
+*/
+
+
+
 
 
 void state_init(state_t *state, char *source) {
@@ -232,6 +90,10 @@ void state_init(state_t *state, char *source) {
         .scope = NULL;
     };
 }
+
+
+
+//void tokenize_statement(state_t *state, 
 
 
 
@@ -295,11 +157,180 @@ int parse_scope_recursive(state_t *state) {
 
 
 
+// TODO: optimize this by creating a whitespace table that is 256 characters
+// long, and you simply index the character into a bool table to determine if 
+// it is whitespace. It will be much faster, and can be compressed into 32 bytes
+// because they are all bools. Though the fastest will be uncompressed if you
+// want to sacrifice 256 bytes of text memory.
+/*bool is_whitespace(char c) {
+    for (int i = 0; i < lenof(whitespace); i++)
+        if (c == whitespace[i])
+            return true;
+    return false;
+}*/
 
-// will modify buffer
-// basically will return a token type, and any extra data about a token
-int advance_token(token_t *token, state_t *state, char **buffer) {
+
+/*typedef int (*match_call_t)(const char *restrict word, const char *restrict sentence, int max);
+
+typedef typeof(*(match_call_t)(NULL)) match_call_enforce_t;
+
+match_call_enforce_t match_utoken;
+match_call_enforce_t match_dtoken;*/
+
+
+// returns length
+__inline__ int match_utoken(const char *restrict word, const char *restrict sentence, int max) {
+    int i;
+    for (i = 0; (word[i] != '\0') && (i < max); i++)
+        if ((word[i] != sentence[i]) || (sentence[i] == '\0'))
+            return 0;
+    return i;
+}
+
+// returns length
+// replace with simple string matching
+/*int match_dtoken(const char *restrict word, const char *restrict sentence, int max) {
+    int i;
+    for (i = 0; (word[i] != '\0') && (i < max); i++) {
+        if ((word[i] != sentence[i]) || (sentence[i] == '\0'))
+            return 0;
+        if (is_alphanumeric(sentence[i]) && word[i+1] == '\0')
+            break;
+    }
+    return i;
+}*/
+
+
+// returns length
+__inline__ int prod_alphanumeric(const char *buffer) {
+    int i;
+    for(i = 0; is_alphanumeric(buffer[i]) && (buffer[i] != '\0'); i++);
+    return i;
+}
+
+
+
+// returns length
+__inline__ int prod_whitespace(const char *buffer) {
+    int i;
+    for(i = 0; is_whitespace(buffer[i]) && (buffer[i] != '\0'); i++);
+    return i;
+}
+
+
+// returns length
+__inline__ int prod_comment(const char *buffer) {
+    int i;
+    if (**(short**)buffer == '/*') {}
+        for(i = 0; *(short*)(*buffer+i) == '
     
+    if (**(short**)buffer == '//') {}
+
+    if ((buffer[0][0] == '/') && (buffer[0][1] == '*')) {}
+    for(i = 0; is_whitespace(buffer[i]) && (buffer[i] != '\0'); i++);
+    return i;
+}
+
+
+
+
+// will modify buffer pointer
+// basically will return a token type, and any extra data about a token
+// will not process sub-tokens
+int advance_token(token_t *restrict token, state_t *restrict state, char *restrict *restrict buffer) {
+
+    /*inline int prod_call(match_call_t match, const char **list, int llen, token_id_t *id) {
+        int len;
+        for(int i = 0; i < llen; i++)
+            if ((len = match(list[i], *buffer, 256))
+                return len;
+        return 0;
+    }*/
+
+    /*int prod_dtoken(token_id_t *id) {
+        int len;
+        for(int i = 0; i < len(dtokens); i++)
+            if ((len = match_dtoken(dtokens[i], *buffer, 256)))
+                return len;
+        return 0;
+    }
+
+    int prod_alphanumeric(token_id_t *id) {
+        int len;
+        for(int i = 0; i < len(dtokens); i++)
+            if ((len = match_dtoken(dtokens[i], *buffer, 256)))
+                return len;
+        return 0;
+    }*/
+
+    //for(;;) {
+    int len;
+    token_id_t id;
+    
+
+    // parse whitespace
+    //for(;is_whitespace(**buffer); *buffer++);
+    //for(len = 0; is_whitespace(buffer[0][len]); len++);
+    if ((len = prod_whitespace(*buffer)) > 0) {
+        token->type = (token_t){
+            .type = TOKEN_TYPE_WHITESPACE,
+            .string = *buffer,
+            .slen = len,
+        };
+        *buffer += len;
+        return 0;
+    }
+    
+
+
+    // parse comments
+    if ((len = prod_comment(*buffer)) > 0) {
+        token->type = (token_t){
+            .type = TOKEN_TYPE_COMMENT,
+            .string = *buffer,
+            .slen = len,
+        };
+        *buffer += len;
+        return 0;
+    }
+
+
+    // parse preprocessor directives
+
+
+    // detect if utoken
+    len = prod_utoken(&id);
+    
+    if (len > 0) {
+
+        *buffer += len;
+
+        token->type = TOKEN_TYPE_TEMP_UNDELIMITED;
+        token->id = id;
+
+        return 0;
+    }
+
+
+    // detect if dtoken
+    len = prod_dtoken(&id);
+    
+    if (len > 0) {
+
+        *buffer += len;
+
+        token->type = TOKEN_TYPE_TEMP_DELIMITED;
+        token->id = id;
+
+        return 0;
+    }
+
+
+    // detect if unknown alphanumeric sequence
+    len = prod_alphanumeric();
+
+    if (len > 0)
+    //}
 }
 
 
@@ -315,6 +346,13 @@ int parse_statement(state_t *state, char *buffer, int blen) { // is the blen nee
 int parse_comment(state_t *state, char *buffer, int blen) { // is the blen needed?
     
 }
+
+
+
+
+
+
+
 
 
 
