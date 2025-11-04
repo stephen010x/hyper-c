@@ -207,3 +207,18 @@ __What is the most efficient indexing sceheme for arbitrary indexable buffers?__
 
 
 Note, SSBO is generally what I should be using for buffers, by the looks of it.
+
+
+
+
+
+
+
+Note, there should probably be a difference between local uniforms, and global uniforms. I suppose the answer to that is quite obvious though. Just like how I despise the idea of global buffer streaming to be treated like global variables, so too do I despise the idea of an instanced global uniform. Therefore, either all changes to a uniform are shared between shader instances.
+
+I should call them _hyperthreads_.
+Although that name overlaps with hyperthreading in cpus. 
+
+But lets use this term for now. All hthreads share global data. And all changes must either be shared between all of them, or they must be read-only. However, this shared data does not mean it is atomic, and can lead to a lot of side effects when accessed directly. Therefore, also have features for atomic access.
+
+And then we have local uniforms, which are really less uniforms at this point, and more like state data. But generally these are passed via parameters, and are truly local to each hthread.

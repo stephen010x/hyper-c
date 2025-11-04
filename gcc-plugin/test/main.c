@@ -9,17 +9,22 @@
 
 int main() {
 
+    /*
     unsigned short _Vector3 v1 = {1, 2, 3};
     unsigned short _Vector3 v2 = {4, 5, 6};
     unsigned short _Vector3 v3;
 
     v3 = v1 + v2;
+    */
+
+    return 0;
     
 }
 
 
 
 hyper int global1;
+
 
 
 struct input {
@@ -46,7 +51,12 @@ struct uniforms {
 
 
 hyper struct output main_test(struct input i, struct uniforms u) {
-    global++;
+    global1++;
 
-    return v1;
+    struct output o;
+
+    o.v1 = (float)u.time;
+    o.v2 = (float)i.v1;
+
+    return o;
 }

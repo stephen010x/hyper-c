@@ -28,8 +28,9 @@ CC := gcc
 # NOTE: -std=c23 is strict c23 compliance, whereas -std=gnu23 includes gnu specific features
 # Here are the extensions
 # https://gcc.gnu.org/onlinedocs/gcc/C-Extensions.html
-CFLAGS := -std=gnu23 -fvisibility=internal -I$(GCCPLUGINS_DIR)/include
-LFLAGS := -shared
+CFLAGS := -std=gnu17 -fvisibility=internal -fPIE
+CFLAGS := $(CFLAGS) -I$(GCCPLUGINS_DIR)/include
+LFLAGS := -pie -Wl,-E
 BFLAGS := -Wall -Wextra
 #LIBS   :=
 
@@ -79,7 +80,7 @@ WASM_BFLAGS :=
 
 
 
-DEFAULT := dynamic_release
+DEFAULT := fast
 WHITELIST := all fast release debug static dynamic 
 WHITELIST := $(WHITELIST) static_fast static_debug static_release
 WHITELIST := $(WHITELIST) dynamic_fast dynamic_debug dynamic_release
