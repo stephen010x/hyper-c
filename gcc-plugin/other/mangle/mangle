@@ -1,0 +1,4 @@
+#!/bin/bash
+
+g++ -c main.cc -o main.o
+nm --no-demangle main.o

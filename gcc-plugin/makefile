@@ -4,7 +4,7 @@
 # https://sourceware.org/binutils/docs/ld/Options.html
 
 
-TARGET := hyper
+TARGETS := hyper 
 INCLUDEE := hyperc.h
 
 TMPDIR := tmp
@@ -17,19 +17,18 @@ LIBDIR := lib
 
 WINDOWS_LIBS :=
 LINUX_LIBS   :=
-# TODO: consider renaming "wasm" to "web"
 WASM_LIBS    :=
 
 
-GCCPLUGINS_DIR:= $(shell $(TARGET_GCC) -print-file-name=plugin)
-
-
 CC := gcc
+
+GCCPLUGINS_DIR:= $(shell $(CC) -print-file-name=plugin)
+
 # NOTE: -std=c23 is strict c23 compliance, whereas -std=gnu23 includes gnu specific features
 # Here are the extensions
 # https://gcc.gnu.org/onlinedocs/gcc/C-Extensions.html
 CFLAGS := -std=gnu17 -fvisibility=internal -fPIE
-CFLAGS := $(CFLAGS) -I$(GCCPLUGINS_DIR)/include
+CFLAGS := $(CFLAGS) -isystem $(GCCPLUGINS_DIR)/include
 LFLAGS := -pie -Wl,-E
 BFLAGS := -Wall -Wextra
 #LIBS   :=
@@ -40,7 +39,7 @@ DBFLAGS :=
 AR := ar
 ARFLAGS := rcs
 
-PP := m4
+# PP := m4
 
 
 FAST_CFLAGS := -D__DEBUG__ -D__debug__
@@ -56,13 +55,13 @@ RELEASE_LFLAGS := -s
 RELEASE_BFLAGS := -Os -g0
 
 
-STATIC_CFLAGS := -D__STATIC_LIB__
-STATIC_LFLAGS := 
-STATIC_BFLAGS := 
-
-DYNAMIC_CFLAGS := -D__DYNAMIC_LIB__ -fpic
-DYNAMIC_LFLAGS := 
-DYNAMIC_BFLAGS := 
+# STATIC_CFLAGS := -D__STATIC_LIB__
+# STATIC_LFLAGS := 
+# STATIC_BFLAGS := 
+# 
+# DYNAMIC_CFLAGS := -D__DYNAMIC_LIB__ -fpic
+# DYNAMIC_LFLAGS := 
+# DYNAMIC_BFLAGS := 
 
 
 WINDOWS_CFLAGS := -D__WIN32__
@@ -87,10 +86,10 @@ WHITELIST := $(WHITELIST) dynamic_fast dynamic_debug dynamic_release
 
 
 
-test: $(BINDIR)/test
-
-$(BINDIR)/test: test/main.c
-	gcc -fplugin=bin/hyper.so -o $@ $<
+# test: $(BINDIR)/test
+# 
+# $(BINDIR)/test: test/main.c
+# 	gcc -fplugin=bin/hyper.so -o $@ $<
 
 
 
