@@ -10,7 +10,7 @@ local debug = build.debug
 
 
 local is_verbose = false
-local is_show_tree = true
+local is_show_tree = false
 
 
 local system = enum.linux
