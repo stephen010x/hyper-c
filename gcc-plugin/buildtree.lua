@@ -233,8 +233,8 @@ fs = {
 
         for key, name in pairs(names) do
             local nlist = name:split('.')
-            name = nlist[#nlist-1]
-            rt[key] = name..'.'..ext
+            nlist[#nlist] = nil
+            rt[key] = table.concat(nlist, '.')..'.'..ext
         end
 
         return is_table and rt or select(2, next(rt))
@@ -382,7 +382,8 @@ module.newtree = function()
         -- it will call itself until all
         -- dependancies built or older
         -- btw, targets can be directories
-        build = function(self, target)
+        build = function(self, target, is_verbose)
+            if is_verbose == nil then is_verbose = false end
 
             local ttarg = self.targets[target]
         
@@ -402,7 +403,7 @@ module.newtree = function()
                 -- check if it exists in the buildtree
                 -- if so then call self:build on it
                 if self.targets[path] ~= nil then
-                    local ok = self:build(path)
+                    local ok = self:build(path, is_verbose)
                     if not ok then return ok end
                 end
 
@@ -418,8 +419,9 @@ module.newtree = function()
             end
 
             if should_rebuild then
+                if is_verbose then print('rebuilding: '..target) end
                 ttarg.builder(target, ttarg.depends, ttarg.options)
-            end
+            elseif is_verbose then print('skipping:   '..target) end
 
             return true
         end,
@@ -434,7 +436,7 @@ local gcc = {}
 
 -- return header dependancies
 gcc.gen_dep = function(file, opts)
-    local str = cmd("gcc "..file.." -MM "..opts, true)
+    local str = cmd("gcc "..file.." -MM "..opts)
     str = str:split(":")[2]
     str = str:gsub("\n", " ")
     str = str:gsub("\\", " ")
