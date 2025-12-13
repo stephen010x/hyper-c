@@ -240,7 +240,7 @@ __inline__ size_t match_utoken(const char *buff) {
 // and then return a bool, a type, and length.
 // int line, int column
 void next_token(token_t *restrict token, const char *restrict buff, size_t *restrict index) {
-    size_t len = 0;
+    size_t len;
     char *nbuff = buff + *index;
     token_type_t type = TOKEN_NULL;
     int tindex = 0x80000000;        // increases likelyhood of segfault if misused
@@ -248,12 +248,14 @@ void next_token(token_t *restrict token, const char *restrict buff, size_t *rest
 
     if (nbuff[0] == '\0') {                             // End Of File check
         type = TOKEN_EOF;
+        len = 0
+
+    // } else if (nbuff[0] == '\n') {                      // newline check
+    //     type = TOKEN_NEWLINE;
+    //     len = 1;
 
     } else if ((len = prod_whitespace(nbuff)) != 0) {   // whitespace check
         type = TOKEN_WHITESPACE;
-
-    } else if (nbuff[0] == '\n') {                      // newline check
-        type = TOKEN_COMMENT;
 
     } else if ((len = prod_comment(nbuff)) != 0) {      // comment check
         type = TOKEN_COMMENT;
@@ -262,7 +264,7 @@ void next_token(token_t *restrict token, const char *restrict buff, size_t *rest
         type = TOKEN_STRING;
         
     } else if ((len = prod_directive(nbuff)) != 0) {    // directive check
-        type = TOKEN_DIRECTIVE;
+        type = TOKEN_DIRECTIVE; 
         
     } else if ((len = prod_alphanumeric(nbuff)) != 0) { // alphanumeric check
 
@@ -278,6 +280,7 @@ void next_token(token_t *restrict token, const char *restrict buff, size_t *rest
         
     } else if ((tindex = match_utoken(nbuff)) != -1) {  // utoken check
         type = TOKEN_UTOKEN;
+        len = strlen(utokens[tindex]);
         
     } else {                                            // otherwise invalid token
         // let the higher level handle error statements
@@ -359,6 +362,20 @@ __inline__ token_t *token_array_insert(token_array_t *restrict array, token_t *r
 
 
 
+int token_count_newlines(token_t *token) {
+    int count = 0;
+
+    for (int i = 0; i < token->len; i++)
+        if (token->start[i] == '\n')
+            count++;
+
+    return count;
+}
+
+
+
+
+
 
 int tokenize_buffer(token_array_t *restrict array, const char *restrict buff) {
     token_t token;
@@ -368,16 +385,18 @@ int tokenize_buffer(token_array_t *restrict array, const char *restrict buff) {
 
     for (;;) {
 
+        // get next token
         next_token(&token, buff, &index);
+
+        // set token line and column number
+        token.line = line;
+        token.column = column;
 
         switch {
 
             // effectively ignore these
-            case TOKEN_WHITESPACE:;
+            case TOKEN_WHITESPACE:
             case TOKEN_COMMENT:
-                break;
-            
-            case TOKEN_NEWLINE:
                 break;
             
             case TOKEN_STRING:
@@ -385,22 +404,50 @@ int tokenize_buffer(token_array_t *restrict array, const char *restrict buff) {
             case TOKEN_DTOKEN:
             case TOKEN_UTOKEN:
             case TOKEN_IDENTIFIER:
-            case TOKEN_NUMERIC: 
+            case TOKEN_NUMERIC:
+
+                // insert token into array
+                void *ok = token_array_insert(array, &token);
+                if (!ok)
+                    return -2;
                 break;
             
-            case TOKEN_EOF: 
-                break;
+            case TOKEN_EOF:
+                return 0;
 
             case TOKEN_NULL:
             case TOKEN_INVALID:
             default:
 
-                lexer_error("invalid token %s:%s:\"%c\" (0x%02x)",
+                lexer_error("invalid token %d:%d: \"%c\" (0x%02x)",
                     line, column, token.start[0], token.start[0]);
                 return -1;
         }
 
+        column += token.len
+
+        int newlines = token_count_newlines(&token);
+        if (newlines > 0) {
+            line += newlines;
+            column = 1;
+        }
+
+
     }
 
     return 0;
+}
+
+
+
+
+
+void print_token_array(token_array_t *array) {
+    for (int i = 0; i < array->tlen; i++) {
+        token_t *token = array->tokens[i];
+        char str[token->len+1];
+        str[token->len] = '\0';
+        strncpy(str, token->start, token->len)
+        printf("line %03d:%03d [%s]:\t%s", token->line, token->column, token_names[token->type], str);
+    }
 }
