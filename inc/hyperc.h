@@ -1,9 +1,13 @@
+#ifndef HYPERC_H
+#define HYPERC_H
 
 
-#define __inline__ __attribute__((always_inline)) static inline
-#define lenof(__n) (sizeof(__n)/(sizeof((__n)[0])))
-#define segfault() (((void (*)(void))NULL)())
+//#include "hyperc/macros.h"
+//#include "hyperc/debug.h"
+#include "hyperc/descriptors.h"
+#include "hyperc/lexer.h"
 
 
 
 
+#endif /* #ifndef HYPERC_H */

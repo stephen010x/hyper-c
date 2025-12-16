@@ -1,3 +1,8 @@
+
+
+TEST_CMD := ./bin/hyper --test ./src/lexer.c ./bin/test.c
+
+
 all:
 	./make.lua
 
@@ -9,7 +14,11 @@ clean:
 	rm -rf bin
 
 test:
-	./bin/hyper ./test/main.c -o ./bin/test
+	#./bin/hyper --test ./test/main.c ./bin/test.c
+	$(TEST_CMD)
+
+gdb:
+	gdb --args $(TEST_CMD)
 
 
-.PHONY: all clean test
+.PHONY: all clean test gdb

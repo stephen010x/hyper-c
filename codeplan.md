@@ -115,4 +115,4 @@ So the tokenization is just going to have to be simple and have no context.
 
 
 
-I think it is worth noting that the parser will need to use a state machine with known variables to determine if a variable is known or unknown, as I think that context will determine how the type is handled.
+I think it is worth noting that the parser will need to use a state machine with known variables to determine if a variable is known or unknown, as I think that context will determine how the type is handled.1

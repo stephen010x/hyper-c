@@ -458,6 +458,7 @@ gcc.filter_headers = function(files)
 end
 
 
+-- TODO: add a way for the builder to return failure, which will cancel the whole build
 gcc.builder = function(outpath, infiles, opts)
     -- make sure output directory exists
     fs.mkdir(fs.get_dir(outpath), "-p")

@@ -1,7 +1,9 @@
 #ifndef HYPERC_DESCRIPTORS_H
 #define HYPERC_DESCRIPTORS_H
 
-#include "hyperc/macros.h"
+#include <stdint.h>
+
+#include "utils/macros.h"
 
 
 /*
@@ -44,7 +46,7 @@ enum {
 
     DTOKEN_IF,
     DTOKEN_ELSE,
-    EYWORD_WHILE,
+    DTOKEN_WHILE,
     DTOKEN_FOR,
     DTOKEN_DO,
     DTOKEN_SWITCH,
@@ -104,10 +106,14 @@ enum {
     UTOKEN_CBLOCK_START,
     UTOKEN_CBLOCK_END,
 
-    UTOKEN_L_PARENTH,
-    UTOKEN_R_PARENTH,
-    UTOKEN_L_BRACKET,
-    UTOKEN_R_BRACKET,
+    UTOKEN_L_RBRACKET,
+    UTOKEN_R_RBRACKET,
+    UTOKEN_L_SBRACKET,
+    UTOKEN_R_SBRACKET,
+    UTOKEN_L_ABRACKET,
+    UTOKEN_R_ABRACKET,
+    UTOKEN_L_CBRACKET,
+    UTOKEN_R_CBRACKET,
 
     UTOKEN_PERIOD,
     UTOKEN_UNDERSCORE,
@@ -154,24 +160,24 @@ extern const char *const dtokens[DTOKEN_LENGTH];
 
 
 extern const bool whitespace_map[256];
-extern const bool alphanumeric_map[256];
+extern const uint8_t alphanumeric_map[256];
 
 
 
 __inline__ bool is_whitespace(char c) {
-    return whitespace_map[(unsigned)c];
+    return whitespace_map[(int)(unsigned char)c];
 }
 
 __inline__ bool is_alphanumeric(char c) {
-    return alphanumeric_map[(unsigned)c];
+    return !!alphanumeric_map[(int)(unsigned char)c];
 }
 
 __inline__ bool is_alpha(char c) {
-    return alphanumeric_map[(unsigned)c] == IS_ALPHA;
+    return alphanumeric_map[(int)(unsigned char)c] == IS_ALPHA;
 }
 
 __inline__ bool is_numeric(char c) {
-    return alphanumeric_map[(unsigned)c] == IS_NUMERIC;
+    return alphanumeric_map[(int)(unsigned char)c] == IS_NUMERIC;
 }
 
 

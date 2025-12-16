@@ -6,56 +6,33 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
 
-#include "hyperc/macros.h"
-#include "hyperc/debug.h"
+#include "utils/macros.h"
+#include "utils/debug.h"
+#include "hyperc/descriptors.h"
 #include "hyperc/lexer.h"
 
 
 
 
-enum {
-    TOKEN_NULL = 0,
-    TOKEN_WHITESPACE,
-    TOKEN_NEWLINE,
-    TOKEN_COMMENT,
-    TOKEN_STRING,
-    TOKEN_DIRECTIVE, // Parser needs to awknowledge these exist, but don't need to do anything with them.
-    TOKEN_DTOKEN,
-    TOKEN_UTOKEN,
-    TOKEN_IDENTIFIER,
-    TOKEN_NUMERIC,
-    TOKEN_EOF,
-    TOKEN_INVALID = -1,
-};
-typeof int token_type_t;
-
-
-
 char *token_names[] = {
-    [TOKEN_NULL]        = #TOKEN_NULL,
-    [TOKEN_WHITESPACE]  = #TOKEN_WHITESPACE,
-    [TOKEN_NEWLINE]     = #TOKEN_NEWLINE,
-    [TOKEN_COMMENT]     = #TOKEN_COMMENT,
-    [TOKEN_STRING]      = #TOKEN_STRING,
-    [TOKEN_DIRECTIVE]   = #TOKEN_DIRECTIVE,
-    [TOKEN_DTOKEN]      = #TOKEN_DTOKEN,
-    [TOKEN_UTOKEN]      = #TOKEN_UTOKEN,
-    [TOKEN_IDENTIFIER]  = #TOKEN_IDENTIFIER,
-    [TOKEN_NUMERIC]     = #TOKEN_NUMERIC,
-    [TOKEN_EOF]         = #TOKEN_EOF,
-}
+    [TOKEN_NULL]        = "TOKEN_NULL     ",
+    [TOKEN_WHITESPACE]  = "TOKEN_WHITESPAC",
+    [TOKEN_NEWLINE]     = "TOKEN_NEWLINE  ",
+    [TOKEN_COMMENT]     = "TOKEN_COMMENT  ",
+    [TOKEN_STRING]      = "TOKEN_STRING   ",
+    [TOKEN_DIRECTIVE]   = "TOKEN_DIRECTIVE",
+    [TOKEN_DTOKEN]      = "TOKEN_DTOKEN   ",
+    [TOKEN_UTOKEN]      = "TOKEN_UTOKEN   ",
+    [TOKEN_IDENTIFIER]  = "TOKEN_IDENTIFIE",
+    [TOKEN_NUMERIC]     = "TOKEN_NUMERIC  ",
+    [TOKEN_EOF]         = "TOKEN_EOF      ",
+};
 
+#define TOKEN_INVALID_STR "TOKEN_INVALID  "
 
-
-typedef struct {
-    token_type_t type;
-    int tindex;
-    char *start;
-    size_t len;
-    int line;
-    int column;
-} token_t;
 
 
 
@@ -63,12 +40,6 @@ typedef struct {
 // the golden ratio
 #define GOLDEN_ALLOC_MULT 1.61803
 
-
-typedef struct {
-    token_t *tokens;
-    size_t tlen;
-    size_t talloc;
-} token_array_t;
 
 
 
@@ -79,9 +50,13 @@ typedef struct {
 
 // format must be a string literal
 #define lexer_error(__format, ...) do {                                         \
-    printf(STR_RED("[lexer error]") "\t" __format, __VA_OPT__(,) __VA_ARGS__)   \
+    printf(STR_RED("[lexer error]") "\t" __format __VA_OPT__(,) __VA_ARGS__);   \
 } while(0)
 
+
+
+
+void print_token(token_t *token);
 
 
 
@@ -110,8 +85,7 @@ typedef struct {
 __inline__ size_t prod_whitespace(const char *buff) {
     size_t index;
     // extract whitespace
-    while (is_whitespace(buff[index]))
-        index++;
+    for (index = 0; is_whitespace(buff[index]); index++);
 
     return index;
 }
@@ -123,8 +97,7 @@ __inline__ size_t prod_whitespace(const char *buff) {
 __inline__ size_t prod_alphanumeric(const char *buff) {
     size_t index;
     // extract alphanumeric
-    while (is_alphanumeric(buff[index]))
-        index++;
+    for (index = 0; is_alphanumeric(buff[index]); index++);
     
     return index;
 }
@@ -138,8 +111,8 @@ __inline__ size_t prod_comment(const char *buff) {
 
     // determine if first two characters are '//'
     if (*(uint16_t*)buff == (uint16_t)'//') {
-        // loop until end of line
-        for (index = 2; buff[index] != '\n', index++);
+        // loop until end of line or EOF
+        for (index = 2; buff[index] != '\n' ; index++);
         return index;
     }
 
@@ -147,11 +120,32 @@ __inline__ size_t prod_comment(const char *buff) {
     // I think multibyte string comparisons have to be byte swapped
     if (*(uint16_t*)buff == (uint16_t)'*/') {
         // loop until '* /' found
-        for (index = 2; *(uint16_t*)(buff+index) == (uint16_t)'/*', index++);
+        for (index = 2; *(uint16_t*)(buff+index) == (uint16_t)'/*'; index++);
         return index+1; // increment by one to include the final '/' character
     }
 
     return 0;
+}
+
+
+
+// could potentially crash or cause issues when used on the first two characters
+// of a file
+// this is only for detecting if a quotation token is escaped, not for any other escape sequence
+__inline__ bool is_escaped(const char *buff) {
+    // count number of backwards slashes
+    // if even then not escaped
+    // if odd then escaped
+
+    int i;
+
+    // loop until no more escape characters found
+    for (i = -1; buff[i] == '\\'; i--);
+
+    // printf("[%d:%d]\t%.10s\n", (-i)%2, i, buff+i);
+    // fflush(stdout);
+
+    return !(i % 2);
 }
 
 
@@ -165,15 +159,15 @@ __inline__ size_t prod_string(const char *buff) {
     // determine if first character is (')
     if (buff[0] == '\'') {
         // loop until another (') that isn't following an escape character
-        for (index = 1; buff[index] != '\'' || buff[index-1] == '\\', index++);
-        return index;
+        for (index = 1; buff[index] != '\'' || is_escaped(&buff[index]); index++);
+        return index+1;
     }
 
     // determine if first character is (")
     if (buff[0] == '"') {
         // loop until another (") that isn't following an escape character
-        for (index = 1; buff[index] != '"' || buff[index-1] == '\\', index++);
-        return index;
+        for (index = 1; buff[index] != '"' || is_escaped(&buff[index]); index++);
+        return index+1;
     }
 
     return 0;
@@ -187,11 +181,19 @@ __inline__ size_t prod_string(const char *buff) {
 __inline__ size_t prod_directive(const char *buff) {
     size_t index;
 
+    // TODO: finish this
+    // make sure if it is preceeded by whitespace with at least one newline
+    // prod_directive needs to be called before prod_whitespace as a result
+    //index = prod_whitespace(buff);
+    //if 
+    index = 0;
+
     // determine if first character is '#'
     if (buff[0] == '#') {
-        // loop until end of line that isn't following an escape character
-        for (index = 1; buff[index] != '\'' || buff[index-1] == '\\', index++);
-        return index;
+        // loop until end of line that isn't following an escape character or EOF
+        for (index += 1; (buff[index] != '\n' || buff[index-1] == '\\') && buff[index] != '\0'; index++);
+        // include newline
+        return index+1;
     }
 
     return 0;
@@ -205,7 +207,7 @@ __inline__ size_t prod_directive(const char *buff) {
 __inline__ size_t match_dtoken(const char *buff, size_t length) {
     // loop through dtokens until a match is found
     int index;
-    for (index = 0; i < DTOKEN_LENGTH && strncmp(buff, dtokens[index], length); index++);
+    for (index = 0; index < DTOKEN_LENGTH && strncmp(buff, dtokens[index], length); index++);
     
     //return index % DTOKEN_LENGTH;   // will ensure that if no match, then returns zero
     return (index == DTOKEN_LENGTH) ? -1 : index;
@@ -218,7 +220,7 @@ __inline__ size_t match_dtoken(const char *buff, size_t length) {
 __inline__ size_t match_utoken(const char *buff) {
     // loop through utokens until a match is found
     int index;
-    for (index = 0; i < UTOKEN_LENGTH && strcmp(buff, utokens[index]); index++);
+    for (index = 0; index < UTOKEN_LENGTH && strncmp(buff, utokens[index], strlen(utokens[index])); index++);
     
     return (index == UTOKEN_LENGTH) ? -1 : index;
 }
@@ -241,19 +243,23 @@ __inline__ size_t match_utoken(const char *buff) {
 // int line, int column
 void next_token(token_t *restrict token, const char *restrict buff, size_t *restrict index) {
     size_t len;
-    char *nbuff = buff + *index;
+    const char *nbuff = buff + *index;
     token_type_t type = TOKEN_NULL;
-    int tindex = 0x80000000;        // increases likelyhood of segfault if misused
+    int tid = 0x80000000;        // increases likelyhood of segfault if misused
 
 
     if (nbuff[0] == '\0') {                             // End Of File check
         type = TOKEN_EOF;
-        len = 0
+        len = 0;
 
     // } else if (nbuff[0] == '\n') {                      // newline check
     //     type = TOKEN_NEWLINE;
     //     len = 1;
 
+    // check directive before whitespace
+    } else if ((len = prod_directive(nbuff)) != 0) {    // directive check
+        type = TOKEN_DIRECTIVE; 
+        
     } else if ((len = prod_whitespace(nbuff)) != 0) {   // whitespace check
         type = TOKEN_WHITESPACE;
 
@@ -263,24 +269,21 @@ void next_token(token_t *restrict token, const char *restrict buff, size_t *rest
     } else if ((len = prod_string(nbuff)) != 0) {       // string check
         type = TOKEN_STRING;
         
-    } else if ((len = prod_directive(nbuff)) != 0) {    // directive check
-        type = TOKEN_DIRECTIVE; 
-        
     } else if ((len = prod_alphanumeric(nbuff)) != 0) { // alphanumeric check
 
         if (is_numeric(nbuff[0])) {                                 // numeric check
             type = TOKEN_NUMERIC;
             
-        } else if ((tindex = match_dtoken(nbuff, len)) != -1) {     // dtoken check
+        } else if ((tid = match_dtoken(nbuff, len)) != -1) {     // dtoken check
             type = TOKEN_DTOKEN;
 
         } else {                                                    // otherwise identifier
             type = TOKEN_IDENTIFIER;
         }
         
-    } else if ((tindex = match_utoken(nbuff)) != -1) {  // utoken check
+    } else if ((tid = match_utoken(nbuff)) != -1) {  // utoken check
         type = TOKEN_UTOKEN;
-        len = strlen(utokens[tindex]);
+        len = strlen(utokens[tid]);
         
     } else {                                            // otherwise invalid token
         // let the higher level handle error statements
@@ -294,8 +297,17 @@ void next_token(token_t *restrict token, const char *restrict buff, size_t *rest
     *index += len;
 
     token->type  = type;
+    token->tid   = tid;
     token->start = nbuff;
     token->len   = len;
+
+    //printf("\n####################################################################\n");
+    //printf("####################################################################\n\n");
+
+    // if (token->type != TOKEN_WHITESPACE) {
+    //     print_token(token);
+    //     fflush(stdout);
+    // }
 
 //     token_t token = {
 //         .type = type,
@@ -314,29 +326,12 @@ void next_token(token_t *restrict token, const char *restrict buff, size_t *rest
 
 
 
-__inline__ int token_array_init(token_array_t *array) {
-    *array = (token_array_t){
-        .tokens = malloc(64*sizeof(token_t)),
-        .tlen = 0,
-        .talloc = 64,
-    };
-
-    return (array->tokens == NULL)
-}
-
-__inline__ void token_array_close(token_array_t *array) {
-    free(array->tokens)
-    *array = {0};
-}
-
-
-
 
 token_t *token_array_newtoken(token_array_t *array) {
 
     if (array->tlen >= array->talloc) {
     
-        array->talloc *= GOLDEN_ALLOC_MULT
+        array->talloc *= GOLDEN_ALLOC_MULT;
         array->tokens = realloc(array->tokens, array->talloc * sizeof(token_t));
 
         if (array->tokens == NULL)
@@ -348,24 +343,10 @@ token_t *token_array_newtoken(token_array_t *array) {
 
 
 
-__inline__ token_t *token_array_insert(token_array_t *restrict array, token_t *restrict token) {
-
-    token_t *newtoken = token_array_newtoken(array);
-
-    if (newtoken != NULL)
-        *newtoken = *token;
-
-    return newtoken;
-}
-
-
-
-
-
 int token_count_newlines(token_t *token) {
     int count = 0;
 
-    for (int i = 0; i < token->len; i++)
+    for (size_t i = 0; i < token->len; i++)
         if (token->start[i] == '\n')
             count++;
 
@@ -376,7 +357,7 @@ int token_count_newlines(token_t *token) {
 
 
 
-
+// TODO: Make this incremental
 int tokenize_buffer(token_array_t *restrict array, const char *restrict buff) {
     token_t token;
     int line = 1;
@@ -392,7 +373,7 @@ int tokenize_buffer(token_array_t *restrict array, const char *restrict buff) {
         token.line = line;
         token.column = column;
 
-        switch {
+        switch (token.type) {
 
             // effectively ignore these
             case TOKEN_WHITESPACE:
@@ -405,26 +386,28 @@ int tokenize_buffer(token_array_t *restrict array, const char *restrict buff) {
             case TOKEN_UTOKEN:
             case TOKEN_IDENTIFIER:
             case TOKEN_NUMERIC:
+            case TOKEN_EOF:
 
                 // insert token into array
                 void *ok = token_array_insert(array, &token);
                 if (!ok)
                     return -2;
+
+                if (token.type == TOKEN_EOF)
+                    return 0;
+                    
                 break;
-            
-            case TOKEN_EOF:
-                return 0;
 
             case TOKEN_NULL:
             case TOKEN_INVALID:
             default:
 
-                lexer_error("invalid token %d:%d: \"%c\" (0x%02x)",
+                lexer_error("invalid token %d:%d: \"%c\" (0x%02x)\n",
                     line, column, token.start[0], token.start[0]);
                 return -1;
         }
 
-        column += token.len
+        column += token.len;
 
         int newlines = token_count_newlines(&token);
         if (newlines > 0) {
@@ -443,11 +426,107 @@ int tokenize_buffer(token_array_t *restrict array, const char *restrict buff) {
 
 
 void print_token_array(token_array_t *array) {
-    for (int i = 0; i < array->tlen; i++) {
-        token_t *token = array->tokens[i];
-        char str[token->len+1];
-        str[token->len] = '\0';
-        strncpy(str, token->start, token->len)
-        printf("line %03d:%03d [%s]:\t%s", token->line, token->column, token_names[token->type], str);
-    }
+    for (size_t i = 0; i < array->tlen; i++)
+        print_token(&array->tokens[i]);
 }
+
+
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Woverride-init"
+char *special_chars[256] = {
+    [0x00 ... 0x1F] = (char*)-1,
+    ['\a'] = "\\a",
+    ['\b'] = "\\b",
+    ['\f'] = "\\f",
+    ['\n'] = "\\n",
+    ['\r'] = "\\r",
+    ['\t'] = "\\t",
+    ['\v'] = "\\v",
+    [0x7F] = (char*)-1,
+};
+#pragma GCC diagnostic pop
+
+
+
+// printf with escape characters
+void printf_wesc(const char *format, ...) {
+    //char *str;
+    size_t strlen;
+
+    va_list vargs, vargs2;
+    va_start(vargs, format);
+    va_copy(vargs2, vargs);
+     
+    strlen = vsnprintf(NULL, 0, format, vargs);
+    va_end(vargs);
+
+    if (strlen == (size_t)-1) {
+        printf("\n");
+        va_end(vargs2);
+        vassert(("string error", false));
+    }
+
+    char str[strlen+1];
+    //char *str = malloc(strlen+1);
+
+    vsnprintf(str, strlen+1, format, vargs2);
+    va_end(vargs2);
+
+    for (size_t i = 0; i < strlen; i++) {
+        char c = str[i];
+        int ci = (int)(unsigned char)c;
+
+        if (special_chars[ci] == NULL)
+            printf("%c", c);
+            
+        else if (special_chars[ci] == (char*)-1)
+            printf("\\0x%02x", ci);
+
+        else {
+            printf("[special at %d]", ci);
+            fflush(stdout);
+            printf(special_chars[ci]);
+        }
+    }
+
+    //free(str);
+}
+
+
+
+void print_token(token_t *token) {
+    char str[token->len+1];
+    char *ttypestr;
+    // char *format;
+
+    // if (false && token->type == TOKEN_WHITESPACE) {
+    //     //str[0] = '\0';
+    //     return;
+    // } else {
+    //     strncpy(str, token->start, token->len);
+    //     str[token->len] = '\0';
+    // }
+
+    strncpy(str, token->start, token->len);
+    str[token->len] = '\0';
+
+    ttypestr = (token->type == TOKEN_INVALID) ? TOKEN_INVALID_STR : token_names[token->type];
+
+    // printf("(\"%s\")\n", str);
+
+    switch (token->type) {
+        case TOKEN_DTOKEN:
+        case TOKEN_UTOKEN:
+            printf("line %03d:%03d [%s\b\b%02d]:\t", token->line, token->column, ttypestr, token->tid);
+            break;
+        default:
+            printf("line %03d:%03d [%s]:\t", token->line, token->column, ttypestr);
+            break;
+    }
+    
+    
+    printf_wesc("%s", str); // passes str as argument rather than format so as to not confuse format strings
+    printf("\n");
+}
+

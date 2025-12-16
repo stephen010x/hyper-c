@@ -26,12 +26,12 @@ local dir = {
 
 
 -- get location of gcc plugin headers
-local gcc_plugin_dir = cmd("gcc -print-file-name=plugin")
+-- local gcc_plugin_dir = cmd("gcc -print-file-name=plugin")
 
 
 flags = "-Wall -Wextra"
-cflags = "-std=gnu17 -fvisibility=internal -I" .. dir.inc
-cflags = cflags .. " -isystem" .. gcc_plugin_dir .. "/include"
+cflags = "-std=gnu17 -fvisibility=internal -Wno-multichar -I" .. dir.inc
+--cflags = cflags .. " -isystem" .. gcc_plugin_dir .. "/include"
 lflags = ""
 
 
@@ -49,7 +49,7 @@ local goals = {
     },
 }
 
-goals.default = goals.debug
+goals.default = 'debug'
 
 
 local outputs = {
@@ -85,8 +85,20 @@ local function concat_flags(...)
 end
 
 
-local goal = arg[1] or 'default'
+local goal = arg[1] or goals.default
 
+
+
+
+
+
+-- add flags to make all libraries include dirs visable to compiler
+for _, file in pairs(fs.ls(dir.lib)) do
+    if fs.is_dir(file) then
+        goals[goal].cflags = goals[goal].cflags .. ' -I'..file..'/inc'
+        goals[goal].lflags = goals[goal].lflags .. ' -L'..file..'/bin'
+    end
+end
 
 
 

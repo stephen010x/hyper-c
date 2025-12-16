@@ -5,7 +5,7 @@
 
 
 const bool whitespace_map[256] = {
-    [0 ... 255] = false,
+    //[0 ... 255] = false,
     [' ']  = true,
     ['\t'] = true,
     ['\n'] = true,
@@ -17,12 +17,12 @@ const bool whitespace_map[256] = {
 
 
 const uint8_t alphanumeric_map[256] = {
-    [0 ... 255] = 0,
+    //[0 ... 255] = 0,
     ['0' ... '9'] = IS_NUMERIC,
     ['a' ... 'z'] = IS_ALPHA,
     ['A' ... 'Z'] = IS_ALPHA,
     ['_']         = IS_ALPHA,
-}
+};
 
 
 
@@ -125,10 +125,18 @@ const char *const utokens[UTOKEN_LENGTH] = {
     
     //{UTOKEN_BSLASHNEW,   "\\\n" }, // this might just be a preprocessor thing
 
-    [UTOKEN_L_PARENTH]    = "(",
-    [UTOKEN_R_PARENTH]    = ")",
-    [UTOKEN_L_BRACKET]    = "[",
-    [UTOKEN_R_BRACKET]    = "]",
+    [UTOKEN_L_RBRACKET]   = "(",
+    [UTOKEN_R_RBRACKET]   = ")",
+    [UTOKEN_L_SBRACKET]   = "[",
+    [UTOKEN_R_SBRACKET]   = "]",
+    // TODO: create better lexer rules to differentiate between
+    // angle brackets and gtr-than and less-than. And to also be able to distinguish beteen
+    // bit shift << and nested brackets.
+    // Actually, I guess my parser is handling grouping, so it doesn't need to be here.
+    [UTOKEN_L_ABRACKET]   = "<",
+    [UTOKEN_R_ABRACKET]   = ">",
+    [UTOKEN_L_CBRACKET]   = "{",
+    [UTOKEN_R_CBRACKET]   = "}",
     
     [UTOKEN_PERIOD]       = ".",
     [UTOKEN_UNDERSCORE]   = "_",

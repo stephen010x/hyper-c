@@ -15,7 +15,8 @@
 
 
 // Caution! not static!
-#define __FILENAME__ filename_from_path(__FILE__)
+//#define __FILENAME__ filename_from_path(__FILE__)
+#define __FILENAME__ __FILE__
 
 
 #define ANSI_DEFAULT   "\033[0m"
@@ -43,6 +44,7 @@
 
 
 
+// TODO: Implement later
 const char* filename_from_path(const char* path);
 
 
@@ -107,7 +109,7 @@ const char* filename_from_path(const char* path);
 //extern char *assert_format;
 
 
-#   define fatal(__ecode) do {
+#   define fatal(__ecode) do {                                                  \
         _Pragma("GCC diagnostic push")                                          \
         _Pragma("GCC diagnostic ignored \"-Wunused-value\"")                    \
         printf(STR_FATAL "\t%s:%s: %s(...): fatal error with code '%d'.\n",     \
