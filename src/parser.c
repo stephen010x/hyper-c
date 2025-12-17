@@ -72,9 +72,11 @@ Alright, so how will this descriptor stuff work? We need a descriptor type, and 
 
 
 
-
+// IMPORTANT!!!
+// These descriptors are literally all based on these
+//############################################################
 // https://en.cppreference.com/w/c/language/declarations.html
-// https://en.cppreference.com/w/c/language/statements.html#Iteration_statements
+// https://en.cppreference.com/w/c/language/statements.html
 
 
 
@@ -97,8 +99,8 @@ typedef struct {
     // by the descriptor, such as tokens or more advanced behavior
     // which can then manually invoke the default class function again.
     int (handler*)();
-    int32_t flags;
-    int32_t **layouts;
+    uint32_t flags;
+    uint32_t **layouts;
 } mclass_t;
 
 
@@ -111,72 +113,271 @@ typedef struct {
 // for this cast (int32_t *[]), I think rules of precidence dictate the pivot
 
 
-int match_specifiers_and_qualifiers(token_t *tokens, size_t len) {
-    for (int i = 0; i < len; i++) {
-        if token()
-    }
-    matcher()
-}
+// int match_specifiers_and_qualifiers(token_t *tokens, size_t len) {
+//     for (int i = 0; i < len; i++) {
+//         if token()
+//     }
+//     matcher();
+// }
+
+
+
+typedef uint32_t match_flags_t;
+
+
+#define MF_DEFAULT      ( 0x0 )
+
+
+#define MF_UNORDERED    ( 0x1<<1 )
+#define MF_IS_GROUP     ( 0x1<<2 )
+
+
+#define MF_FLAG_MASK    ( 0xFFFF0000 )
+
+#define MF_ZERO_OR_ONE  ( 0x1<<16 )
+#define MF_ZERO_OR_MORE ( 0x1<<17 )
+#define MF_ONE_OR_MORE  ( 0x1<<18 )
+#define MF_UTOKEN       ( 0x1<<19 )
+#define MF_DTOKEN       ( 0x1<<20 )
+#define MF_NUMERIC_WILDCARD         ( 0x1<<21 )
+#define MF_ALPHANUMERIC_WILDCARD    ( 0x1<<22 )
+
+
+
+// TODO: Order these from easiest to determine/match to hardest
+enum {
+    MATCH_END = 0,
+    MATCH_DECLARATION,
+    MATCH_SPECIFIERS_AND_QUALIFIERS,
+    MATCH_DECLARATOR_AND_INITIALIZER,
+    MATCH_DECLARATOR_AND_INITIALIZER_LIST,
+    MATCH_DECLARATOR,
+    MATCH_ATTRIBUTE,
+    MATCH_INITIALIZER,
+    MATCH_INITIALIZER_LIST,
+    MATCH_IDENTIFIER,
+};
+typedef uint32_t match_class_t;
+
+// TODO:
+/*
+MATCH_QUALIFIER
+MATCH_EXPRESSION
+MATCH_TYPE_SPECIFIER
+MATCH_STORAGE_SPECIFIER
+MATCH_TYPE_QUALIFIER
+MATCH_FUNCTION_SPECIFIER
+MATCH_ALIGNMENT_SPECIFIER
+MATCH_NO_PTR_DECLARATOR
+MATCH_PARAMETERS_OR_IDENTIFIERS
+*/
+
 
 
 
 mclass_t mclasses[] = {
 
-    [MATCH_DECLARATION] = {
+    [MATCH_DECLARATION] = { // declares types and variables
     
         .handler = tbd /*(to be determined)*/,
-        .flags = MF_DEFAULT,
-        .layouts = (int32_t *[]){
-            (int32_t []){
-                MATCH_ATTRIBUTES,
+        .flags = MF_IS_GROUP,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){          // attr-spec-seq specifiers-and-qualifiers declarators-and-initializers ;
+                MATCH_ATTRIBUTE | MF_ZERO_OR_MORE,
                 MATCH_SPECIFIERS_AND_QUALIFIERS,
-                MATCH_DECLARATORS_AND_INITIALIZERS,
-                MATCH_SEMICOLON,
+                MATCH_DECLARATOR_AND_INITIALIZER_LIST,
+                UTOKEN_SEMICOLON | MF_UTOKEN,
                 MATCH_END,
             },
-            (int32_t []){
+            (uint32_t []){          // specifiers-and-qualifiers declarators-and-initializers(optional) ;
                 MATCH_SPECIFIERS_AND_QUALIFIERS, 
-                MATCH_DECLARATORS_AND_INITIALIZERS,
-                MATCH_SEMICOLON,
-                MATCH_END,
-            },
-            (int32_t []){
-                MATCH_SPECIFIERS_AND_QUALIFIERS, 
-                MATCH_SEMICOLON,
+                MATCH_DECLARATOR_AND_INITIALIZER_LIST | MF_ZERO_OR_ONE,
+                UTOKEN_SEMICOLON | MF_UTOKEN,
                 MATCH_END,
             },
         },
     },
     
-    [MATCH_SPECIFIERS_AND_QUALIFIERS] = { // one or more
+    [MATCH_SPECIFIERS_AND_QUALIFIERS] = {
 
         .flags = MF_UNORDERED,
-        .layouts = (int32_t *[]){
-            (int32_t []){
-                MATCH_SPECIFIERS_AND_QUALIFIERS_OPT,    // zero or more
-                MATCH_TYPE_SPECIFIER,   // only one
+        .layouts = (uint32_t *[]){
+            (uint32_t []){
+                MATCH_TYPE_SPECIFIER,
+                MATCH_STORAGE_SPECIFIER | MF_ZERO_OR_ONE,
+                MATCH_TYPE_QUALIFIER | MF_ZERO_OR_MORE,
+                MATCH_FUNCTION_SPECIFIER | MF_ZERO_OR_MORE,
+                MATCH_ALIGNMENT_SPECIFIER | MF_ZERO_OR_MORE,
+                MATCH_END,
+            },
+        },
+    },
+
+    // I assume function declarator with body is something not included in this, 
+    // but as another match type
+    [MATCH_DECLARATOR_AND_INITIALIZER_LIST] = {
+        .flags = MF_IS_GROUP,
+        .layouts = (uint32_t *[]){      // infinite recursion fixed here
+            (uint32_t []){              // declarator-and-initializer, declarators-and-initializers
+                MATCH_DECLARATOR_AND_INITIALIZER,
+                UTOKEN_COMMA | MF_UTOKEN,
+                MATCH_DECLARATOR_AND_INITIALIZER_LIST,
+                MATCH_END,
+            },
+        },
+    },
+
+    [MATCH_DECLARATOR_AND_INITIALIZER] = {
+        .flags = MF_IS_GROUP,
+        .layouts = (uint32_t *[]){      // declarator includes struct definitions in the identifier
+            (uint32_t []){              // declarator
+                MATCH_DECLARATOR,
+                MATCH_END,
+            },
+            (uint32_t []){              // declarator = initilizer
+                MATCH_DECLARATOR,
+                UTOKEN_EQUALS | MF_UTOKEN,
+                MATCH_INITIALIZER,
+                MATCH_END,
+            },
+        },
+    },
+
+    [MATCH_DECLARATOR] = {
+        .flags = MF_IS_GROUP,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // identifier attr-spec-seq(optional)
+                MATCH_IDENTIFIER,
+                MATCH_ATTRIBUTE | MF_ZERO_OR_MORE,
+                MATCH_END,
+            },
+            (uint32_t []){              // ( declarator )
+                UTOKEN_L_RBRACKET | MF_UTOKEN,
+                MATCH_DECLARATOR,
+                UTOKEN_R_RBRACKET | MF_UTOKEN,
+                MATCH_END,
+            },                          // pointer declarator
+            (uint32_t []){              // * attr-spec-seq(optional) qualifiers(optional) declarator
+                UTOKEN_STAR | MF_UTOKEN,
+                MATCH_ATTRIBUTE | MF_ZERO_OR_MORE,
+                MATCH_QUALIFIER | MF_ZERO_OR_MORE,
+                MATCH_DECLARATOR,
+                MATCH_END,
+            },                          // array declarator
+            (uint32_t []){              // noptr-declarator [ static(optional) qualifiers(optional) expression ]
+                MATCH_NO_PTR_DECLARATOR,
+                UTOKEN_L_SBRACKET | MF_UTOKEN,
+                DTOKEN_STATIC | MF_DTOKEN | MF_ZERO_OR_ONE,
+                MATCH_QUALIFIER | MF_ZERO_OR_MORE,
+                MATCH_EXPRESSION,
+                UTOKEN_R_SBRACKET | MF_UTOKEN,
+                MATCH_END,
+            },                          // array declarator
+            (uint32_t []){              // noptr-declarator [ qualifiers(optional) * ]
+                MATCH_NO_PTR_DECLARATOR,
+                UTOKEN_L_SBRACKET
+                MATCH_QUALIFIER | MF_ZERO_OR_MORE,
+                UTOKEN_STAR | MF_UTOKEN,
+                UTOKEN_R_SBRACKET
+                MATCH_END,
+            },                          // function declarator
+            (uint32_t []){              // noptr-declarator ( parameters-or-identifiers )
+                MATCH_NO_PTR_DECLARATOR,
+                UTOKEN_L_RBRACKET,
+                MATCH_PARAMETERS_OR_IDENTIFIERS,
+                UTOKEN_R_RBRACKET,
+                MATCH_END,
+            },
+        },
+    },
+
+    [MATCH_ATTRIBUTE] = {
+        .flags = MF_IS_GROUP,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // __attribute__ (( attribute ))
+                DTOKEN_ATTRIBUTE | MF_DTOKEN,
+                UTOKEN_L_RBRACKET | MF_UTOKEN,
+                UTOKEN_L_RBRACKET | MF_UTOKEN,
+                MF_ALPHANUMERIC_WILDCARD,
+                UTOKEN_R_RBRACKET | MF_UTOKEN,
+                UTOKEN_R_RBRACKET | MF_UTOKEN,
+                MATCH_END,
+            },
+        },
+    },
+
+    [MATCH_INITIALIZER] = {
+        .flags = MF_IS_GROUP,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // { initilizer-list } or { }
+                UTOKEN_L_CBRACKET | MF_UTOKEN,
+                MATCH_INITIALIZER_LIST | MF_OPTIONAL
+                UTOKEN_R_CBRACKET | MF_UTOKEN,
+                MATCH_END,
+            },
+        },
+    },
+
+    // This avoids infinite recursion because it checks for an initilizer first
+    // before the recursive check for initilizer-list
+    // thank goodness the previous MATCH_INITILIZER has curly brackets before
+    // checking for initilizer-list, otherwise it would result in infinite 
+    // recursion again.
+    [MATCH_INITIALIZER_LIST] = {
+        .flags = MF_IS_GROUP,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // designator-list = initializer
+                MATCH_INITIALIZER,
+                MATCH_END
+            },
+            (uint32_t []){              // initiliazer
+                MATCH_INITIALIZER,
+                MATCH_END
+            },
+            (uint32_t []){              // initiliazer, initiliazer-list
+                MATCH_EXPRESSION,
+                UTOKEN_COMMA | MF_UTOKEN,
+                MATCH_INITIALIZER_LIST,
                 MATCH_END,
             },
         },
     },
     
-    [MATCH_SPECIFIERS_AND_QUALIFIERS_OPT] = {   // zero or more
-
-        .flags = MF_UNORDERED | MF_ZERO_OR_MORE_SPACE_SEPARATED,
-        .layouts = (int32_t *[]){
-            (int32_t []){
-                MATCH_STORAGE_SPECIFIERS,
-                MATCH_TYPE_QUALIFIER,
+    [MATCH_IDENTIFIER] = {
+        .flags = MF_IS_GROUP,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // null format
+                MATCH_NIL,
                 MATCH_END,
-            },
-        },
-    },
-    {
-        .class = MATCH_DECLARATORS_AND_INITIALIZERS,
-        .flags = MF_ONE_OR_MORE_COMMA_SEPARATED,
-        .layouts = (int32_t *[]){
-            (int32_t []){
             },
         },
     },
 };
+
+
+
+
+
+/* example matcher class
+
+    [MATCH_NIL] = {
+        .flags = MF_IS_GROUP,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // null format
+                MATCH_NIL,
+                MATCH_END,
+            },
+        },
+    },
+
+
+*/
+
+
+
+
+/*| MF_ONE_OR_MORE_COMMA_SEPARATED,*/

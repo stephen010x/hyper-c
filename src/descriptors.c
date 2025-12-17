@@ -82,6 +82,8 @@ const char *const dtokens[DTOKEN_LENGTH] = {
     [DTOKEN_STATIC_ASSERT] = "static_assert",
     [DTOKEN_THREAD_LOCAL]  = "thread_local",
     [DTOKEN_TYPEOF_UNQUAL] = "typeof_unqual",
+    
+    [DTOKEN_ATTRIBUTE]     = "__attribute__",
     // TODO: remember to reserve all characters with one or two underscores, followed by an uppercase letter
 };
 

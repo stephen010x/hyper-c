@@ -69,6 +69,8 @@ enum {
     DTOKEN_THREAD_LOCAL,
     DTOKEN_TYPEOF_UNQUAL,
 
+    DTOKEN_ATTRIBUTE,
+
     DTOKEN_LENGTH
 };
 typedef int dtoken_id_t;
