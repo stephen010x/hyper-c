@@ -84,6 +84,12 @@ const char *const dtokens[DTOKEN_LENGTH] = {
     [DTOKEN_TYPEOF_UNQUAL] = "typeof_unqual",
     
     [DTOKEN_ATTRIBUTE]     = "__attribute__",
+    
+    [DTOKEN_ATOMIC]     = "_Atomic",
+    [DTOKEN_BITINT]     = "_BitInt",
+    [DTOKEN_COMPLEX]    = "_Complex",
+    [DTOKEN_IMAGINARY]  = "_Imaginary",
+    [DTOKEN_NORETURN]   = "_Noreturn",
     // TODO: remember to reserve all characters with one or two underscores, followed by an uppercase letter
 };
 

@@ -64,6 +64,32 @@ Make sure to order statements from easiest to process to hardest to process. The
 
 
 
+/* (kinda cool)
+
+# Arity Series (latin)
+
+    0 - Nullary
+    1 - Unary
+    2 - Binary
+    3 - Ternary
+    4 - Quaternary
+
+
+# Adicity Series (greek)
+
+    0 - Niladic
+    1 - Monadic
+    2 - Dyadic
+    3 - Triadic
+    4 - Tetradic
+
+*/
+
+
+
+
+
+
 /*
 
 Alright, so how will this descriptor stuff work? We need a descriptor type, and then multiple variations of that type.
@@ -128,19 +154,24 @@ typedef uint32_t match_flags_t;
 #define MF_DEFAULT      ( 0x0 )
 
 
-#define MF_UNORDERED    ( 0x1<<1 )
-#define MF_IS_GROUP     ( 0x1<<2 )
+#define MF_UNORDERED     ( 0x1<<1 ) /* not related to the following two flags */
+#define MF_LEFT_TO_RIGHT ( 0x1<<2 )
+#define MF_RIGHT_TO_LEFT ( 0x1<<3 )
+// grouping now determined by the handler callback
+//#define MF_IS_GROUP     ( 0x1<<2 )
 
 
-#define MF_FLAG_MASK    ( 0xFFFF0000 )
+//#define MF_FLAG_MASK    ( 0xFFFF0000 )
+#define MF_MATCH_MASK   ( 0x0000FFFF )
 
 #define MF_ZERO_OR_ONE  ( 0x1<<16 )
 #define MF_ZERO_OR_MORE ( 0x1<<17 )
 #define MF_ONE_OR_MORE  ( 0x1<<18 )
 #define MF_UTOKEN       ( 0x1<<19 )
 #define MF_DTOKEN       ( 0x1<<20 )
-#define MF_NUMERIC_WILDCARD         ( 0x1<<21 )
-#define MF_ALPHANUMERIC_WILDCARD    ( 0x1<<22 )
+#define MF_TOKEN_TYPE   ( 0x1<<21 )
+//#define MF_NUMERIC_WILDCARD         ( 0x1<<21 )
+//#define MF_ALPHANUMERIC_WILDCARD    ( 0x1<<22 )
 
 
 
@@ -155,22 +186,79 @@ enum {
     MATCH_ATTRIBUTE,
     MATCH_INITIALIZER,
     MATCH_INITIALIZER_LIST,
-    MATCH_IDENTIFIER,
+    MATCH_QUALIFIER,
+    
+    // make sure expression here is last
+    // as it will have 15 different subcategories
+    MATCH_EXPRESSION,
 };
 typedef uint32_t match_class_t;
 
 // TODO:
 /*
-MATCH_QUALIFIER
-MATCH_EXPRESSION
 MATCH_TYPE_SPECIFIER
 MATCH_STORAGE_SPECIFIER
 MATCH_TYPE_QUALIFIER
 MATCH_FUNCTION_SPECIFIER
 MATCH_ALIGNMENT_SPECIFIER
 MATCH_NO_PTR_DECLARATOR
-MATCH_PARAMETERS_OR_IDENTIFIERS
+MATCH_PARAMETERS
 */
+
+
+
+#define TYPE_A  0
+#define TYPE_B  1
+#define TYPE_C  2
+#define TYPE_D  3
+#define TYPE_E  4
+#define TYPE_F  5
+#define TYPE_G  6
+#define TYPE_H  7
+#define TYPE_I  8
+#define TYPE_J  9
+#define TYPE_K  10
+#define TYPE_L  11
+#define TYPE_M  12
+#define TYPE_N  13
+#define TYPE_O  14
+#define TYPE_P  15
+#define TYPE_Q  16
+#define TYPE_R  17
+#define TYPE_S  18
+#define TYPE_T  19
+#define TYPE_U  20
+#define TYPE_V  21
+#define TYPE_W  22
+#define TYPE_X  23
+#define TYPE_Y  24
+#define TYPE_Z  25
+
+
+
+
+// // Order these based off of operator precidence
+// enum {
+//     OP_NULLARY = 0,
+//     OP_PARENTH,
+// 
+//     // left to right
+//     OP_COMMA,
+// 
+//     // right to left
+//     OP_BIT_ASSIGN_AND,
+//     OP_BIT_ASSIGN_OR,
+//     OP_BIT_ASSIGN_XOR,
+//     OP_BIT_ASSIGN_SHR,
+//     OP_BIT_ASSIGN_SHL,
+// };
+// typedef operator_type_t;
+
+
+// How would I do right to left associativity?
+// a = b = c
+// I suppose this would be maximum grouping vs minimum grouping.
+// I might just be able to add a flag for this.
 
 
 
@@ -180,7 +268,7 @@ mclass_t mclasses[] = {
     [MATCH_DECLARATION] = { // declares types and variables
     
         .handler = tbd /*(to be determined)*/,
-        .flags = MF_IS_GROUP,
+        .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){
             (uint32_t []){          // attr-spec-seq specifiers-and-qualifiers declarators-and-initializers ;
                 MATCH_ATTRIBUTE | MF_ZERO_OR_MORE,
@@ -216,7 +304,7 @@ mclass_t mclasses[] = {
     // I assume function declarator with body is something not included in this, 
     // but as another match type
     [MATCH_DECLARATOR_AND_INITIALIZER_LIST] = {
-        .flags = MF_IS_GROUP,
+        .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){      // infinite recursion fixed here
             (uint32_t []){              // declarator-and-initializer, declarators-and-initializers
                 MATCH_DECLARATOR_AND_INITIALIZER,
@@ -228,7 +316,7 @@ mclass_t mclasses[] = {
     },
 
     [MATCH_DECLARATOR_AND_INITIALIZER] = {
-        .flags = MF_IS_GROUP,
+        .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){      // declarator includes struct definitions in the identifier
             (uint32_t []){              // declarator
                 MATCH_DECLARATOR,
@@ -243,11 +331,13 @@ mclass_t mclasses[] = {
         },
     },
 
+    // TODO: Make sure to order these according to order of evaluation
     [MATCH_DECLARATOR] = {
-        .flags = MF_IS_GROUP,
+        .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){
             (uint32_t []){              // identifier attr-spec-seq(optional)
-                MATCH_IDENTIFIER,
+                TOKEN_IDENTIFIER | MF_TOKEN_TYPE,
+                //MATCH_IDENTIFIER,
                 MATCH_ATTRIBUTE | MF_ZERO_OR_MORE,
                 MATCH_END,
             },
@@ -284,7 +374,7 @@ mclass_t mclasses[] = {
             (uint32_t []){              // noptr-declarator ( parameters-or-identifiers )
                 MATCH_NO_PTR_DECLARATOR,
                 UTOKEN_L_RBRACKET,
-                MATCH_PARAMETERS_OR_IDENTIFIERS,
+                MATCH_PARAMETERS,
                 UTOKEN_R_RBRACKET,
                 MATCH_END,
             },
@@ -292,13 +382,13 @@ mclass_t mclasses[] = {
     },
 
     [MATCH_ATTRIBUTE] = {
-        .flags = MF_IS_GROUP,
+        .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){
             (uint32_t []){              // __attribute__ (( attribute ))
                 DTOKEN_ATTRIBUTE | MF_DTOKEN,
                 UTOKEN_L_RBRACKET | MF_UTOKEN,
                 UTOKEN_L_RBRACKET | MF_UTOKEN,
-                MF_ALPHANUMERIC_WILDCARD,
+                TOKEN_IDENTIFIER | MF_TOKEN_TYPE, // not actually identifier. Just alphanumeric
                 UTOKEN_R_RBRACKET | MF_UTOKEN,
                 UTOKEN_R_RBRACKET | MF_UTOKEN,
                 MATCH_END,
@@ -307,7 +397,7 @@ mclass_t mclasses[] = {
     },
 
     [MATCH_INITIALIZER] = {
-        .flags = MF_IS_GROUP,
+        .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){
             (uint32_t []){              // expression
                 MATCH_EXPRESSION,
@@ -328,7 +418,7 @@ mclass_t mclasses[] = {
     // checking for initilizer-list, otherwise it would result in infinite 
     // recursion again.
     [MATCH_INITIALIZER_LIST] = {
-        .flags = MF_IS_GROUP,
+        .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){
             (uint32_t []){              // designator-list = initializer
                 MATCH_INITIALIZER,
@@ -346,12 +436,150 @@ mclass_t mclasses[] = {
             },
         },
     },
-    
-    [MATCH_IDENTIFIER] = {
-        .flags = MF_IS_GROUP,
+
+    [MATCH_QUALIFIER] = {
+        .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){
-            (uint32_t []){              // null format
-                MATCH_NIL,
+            (uint32_t []){              // const
+                DTOKEN_CONST,
+                MATCH_END,
+            },
+            (uint32_t []){              // volatile
+                DTOKEN_VOLATILE,
+                MATCH_END,
+            },
+            (uint32_t []){              // restrict
+                DTOKEN_RESTRICT,
+                MATCH_END,
+            },
+            (uint32_t []){              // _Atomic
+                DTOKEN_ATOMIC,
+                MATCH_END,
+            },
+        },
+    },
+
+    // TODO: order of operations may actually be achievable with this
+    // instead of `op binary-operator op`, which will match for any operator
+    // we can instead do `op * op` which will search for that sequence first
+    // with early termination if no match for a valid operand.
+    // 1 + 2 * 3 + 4 * 5
+    // here the multiplication check it will fail on 1 + 2, because 1 is a valid expression.
+    // so in order for this to work, we would need to keep prodding for the check until we
+    // reach a mismatch. But incomplete matches will simply end the prod early and start with the 
+    // next prod.
+    // I suspect we would need to make this the default behavior for the matcher. Because otherwise
+    // it would always abort too early.
+    // but now the real question, should we go for max prod, or min prod.
+    // also operators with higher precidence should do less grouping, so plus would actually
+    // be checked before multiplication.
+
+    // TODO: alright, slightly new plan due to associativity
+    // instead we choose prod sizes first, and for each prod size we check each layout.
+    // this way we can group operators by precidence, as well as rely on associativity within
+    // precedence groups where operators all have the same precidence.
+    // and the associativity direction is determined by matching with either the biggest prod group
+    // or with the smallest prod group.
+    // Actually, only do this if associativity is set. Otherwise we do it the original way to
+    // ensure pattern matches are done in a specific order, which will help speed up recursion
+    // and other things.
+    // Also it will make precedence ordering possible still.
+    // Yeah, so left-to-right and right-to-left processes in order of associativity
+    // whereas the default will process in order of precedence, or order in the list.
+
+    // TODO: Also, should primary expressions go last?
+    // I guess it might not matter since they are nullary expressions
+    // So it might just make matching faster to put them up front
+
+    // also assume casts are forms of expressions.
+    [MATCH_EXPRESSION] = {
+        .flags = MF_DEFAULT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // ( expression )
+                UTOKEN_L_RBRACKET | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                UTOKEN_L_RBRACKET | MF_UTOKEN,
+                MATCH_END,
+            },
+            (uint32_t []){              // numeric
+                TOKEN_NUMERIC | MF_TOKEN_TYPE,
+                MATCH_END,
+            },
+            (uint32_t []){              // identifier
+                TOKEN_IDENTIFIER | MF_TOKEN_TYPE,,
+                MATCH_END,
+            },
+            (uint32_t []){ MATCH_EXPRESSION + 15, MATCH_END, }, // Precedence 15
+            (uint32_t []){ MATCH_EXPRESSION + 14, MATCH_END, }, // Precedence 14
+            (uint32_t []){ MATCH_EXPRESSION + 13, MATCH_END, }, // Precedence 13
+            (uint32_t []){ MATCH_EXPRESSION + 12, MATCH_END, }, // Precedence 12
+            (uint32_t []){ MATCH_EXPRESSION + 11, MATCH_END, }, // Precedence 11
+            (uint32_t []){ MATCH_EXPRESSION + 10, MATCH_END, }, // Precedence 10
+            (uint32_t []){ MATCH_EXPRESSION +  9,  MATCH_END, }, // Precedence 9
+            (uint32_t []){ MATCH_EXPRESSION +  8,  MATCH_END, }, // Precedence 8
+            (uint32_t []){ MATCH_EXPRESSION +  7,  MATCH_END, }, // Precedence 7
+            (uint32_t []){ MATCH_EXPRESSION +  6,  MATCH_END, }, // Precedence 6
+            (uint32_t []){ MATCH_EXPRESSION +  5,  MATCH_END, }, // Precedence 5
+            (uint32_t []){ MATCH_EXPRESSION +  4,  MATCH_END, }, // Precedence 4
+            (uint32_t []){ MATCH_EXPRESSION +  3,  MATCH_END, }, // Precedence 3
+            (uint32_t []){ MATCH_EXPRESSION +  2,  MATCH_END, }, // Precedence 2
+            (uint32_t []){ MATCH_EXPRESSION +  1,  MATCH_END, }, // Precedence 1
+
+            
+            // (uint32_t []){              // op binary-operator op
+            //     MATCH_OPERAND,
+            //     MATCH_BINARY_OPERATOR,
+            //     MATCH_OPERAND,
+            //     MATCH_END,
+            // },
+            // (uint32_t []){              // op left-unary-operator
+            //     MATCH_L_UNARY_OPERATOR,
+            //     MATCH_OPERAND,
+            //     MATCH_END,
+            // },
+            // (uint32_t []){              // right-unary-operator op
+            //     MATCH_L_UNARY_OPERATOR,
+            //     MATCH_OPERAND,
+            //     MATCH_END,
+            // },
+        },
+    },
+
+    // remember, a cast is still an operation, so a variable is generalized to an expression
+    // which means that dereferencing and member access are effectively ordinary operators
+    
+    [MATCH_EXPRESSION + 1] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression ++
+                MATCH_EXPRESSION,
+                UTOKEN_INCREMENT | MF_UTOKEN,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression --
+                MATCH_EXPRESSION,
+                UTOKEN_DECREMENT | MF_UTOKEN,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression ( parameters )
+                MATCH_EXPRESSION,
+                UTOKEN_L_RBRACKET | MF_UTOKEN,
+                MATCH_PARAMETERS,
+                UTOKEN_R_RBRACKET | MF_UTOKEN,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression [ expression ]
+                MATCH_EXPRESSION,
+                UTOKEN_L_SBRACKET | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                UTOKEN_R_SBRACKET | MF_UTOKEN,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression . expression
+                MATCH_EXPRESSION,
+                UTOKEN_L_SBRACKET | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                UTOKEN_R_SBRACKET | MF_UTOKEN,
                 MATCH_END,
             },
         },
@@ -365,7 +593,7 @@ mclass_t mclasses[] = {
 /* example matcher class
 
     [MATCH_NIL] = {
-        .flags = MF_IS_GROUP,
+        .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){
             (uint32_t []){              // null format
                 MATCH_NIL,
@@ -381,3 +609,16 @@ mclass_t mclasses[] = {
 
 
 /*| MF_ONE_OR_MORE_COMMA_SEPARATED,*/
+
+
+
+    // Just search for token identifiers instead of this.
+    // [MATCH_IDENTIFIER] = {
+    //     .flags = MF_IS_GROUP,
+    //     .layouts = (uint32_t *[]){
+    //         (uint32_t []){              // alphanumeric-wildcard (includes underscore)
+    //             TOKEN_IDENTIFIER | MF_TOKEN_TYPE,
+    //             MATCH_END,
+    //         },
+    //     },
+    // },

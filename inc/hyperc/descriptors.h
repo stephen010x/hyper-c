@@ -71,6 +71,12 @@ enum {
 
     DTOKEN_ATTRIBUTE,
 
+    DTOKEN_ATOMIC.
+    DTOKEN_BITINT.
+    DTOKEN_COMPLEX.
+    DTOKEN_IMAGINARY.
+    DTOKEN_NORETURN.
+
     DTOKEN_LENGTH
 };
 typedef int dtoken_id_t;
