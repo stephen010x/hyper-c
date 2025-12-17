@@ -102,7 +102,7 @@ const char *const dtokens[DTOKEN_LENGTH] = {
 // or at least make sure nothing that comprises longer operators are in front.
 const char *const utokens[UTOKEN_LENGTH] = {
 
-    [UTOKEN_ARROW]        = "->",
+    [UTOKEN_R_ARROW]      = "->",
     
     [UTOKEN_LOR]          = "||",
     [UTOKEN_LAND]         = "&&",

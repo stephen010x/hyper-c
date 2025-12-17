@@ -196,13 +196,15 @@ typedef uint32_t match_class_t;
 
 // TODO:
 /*
+MATCH_PARAMETERS
+MATCH_COMPOUND_LITERAL
 MATCH_TYPE_SPECIFIER
 MATCH_STORAGE_SPECIFIER
 MATCH_TYPE_QUALIFIER
 MATCH_FUNCTION_SPECIFIER
 MATCH_ALIGNMENT_SPECIFIER
 MATCH_NO_PTR_DECLARATOR
-MATCH_PARAMETERS
+MATCH_EXPRESSION_LIST
 */
 
 
@@ -371,7 +373,7 @@ mclass_t mclasses[] = {
                 UTOKEN_R_SBRACKET
                 MATCH_END,
             },                          // function declarator
-            (uint32_t []){              // noptr-declarator ( parameters-or-identifiers )
+            (uint32_t []){              // noptr-declarator ( parameters )
                 MATCH_NO_PTR_DECLARATOR,
                 UTOKEN_L_RBRACKET,
                 MATCH_PARAMETERS,
@@ -400,7 +402,7 @@ mclass_t mclasses[] = {
         .flags = MF_DEFAULT,
         .layouts = (uint32_t *[]){
             (uint32_t []){              // expression
-                MATCH_EXPRESSION,
+                MATCH_EXPRESSION,       // an expression may be a compound literal
                 MATCH_END,
             },
             (uint32_t []){              // { initilizer-list } or { }
@@ -423,16 +425,16 @@ mclass_t mclasses[] = {
             (uint32_t []){              // designator-list = initializer
                 MATCH_INITIALIZER,
                 MATCH_END
-            },
-            (uint32_t []){              // initiliazer
-                MATCH_INITIALIZER,
-                MATCH_END
-            },
+            },                          // this should go first so that it matches first
             (uint32_t []){              // initiliazer, initiliazer-list
                 MATCH_EXPRESSION,
                 UTOKEN_COMMA | MF_UTOKEN,
                 MATCH_INITIALIZER_LIST,
                 MATCH_END,
+            },
+            (uint32_t []){              // initiliazer
+                MATCH_INITIALIZER,
+                MATCH_END
             },
         },
     },
@@ -491,6 +493,12 @@ mclass_t mclasses[] = {
     // I guess it might not matter since they are nullary expressions
     // So it might just make matching faster to put them up front
 
+    // TODO: I need to make sure that an expression alone will try to select the smallest
+    // working expression for operators such as sizeof.
+    // Perhaps to do this we would try to either find the smallest left hand match for
+    // default or left-to-right, or we would find the biggest left-hand match that 
+    // results in the smallest right-hand match for right-to-left matches.
+
     // also assume casts are forms of expressions.
     [MATCH_EXPRESSION] = {
         .flags = MF_DEFAULT,
@@ -506,7 +514,7 @@ mclass_t mclasses[] = {
                 MATCH_END,
             },
             (uint32_t []){              // identifier
-                TOKEN_IDENTIFIER | MF_TOKEN_TYPE,,
+                TOKEN_IDENTIFIER | MF_TOKEN_TYPE,
                 MATCH_END,
             },
             (uint32_t []){ MATCH_EXPRESSION + 15, MATCH_END, }, // Precedence 15
@@ -515,39 +523,20 @@ mclass_t mclasses[] = {
             (uint32_t []){ MATCH_EXPRESSION + 12, MATCH_END, }, // Precedence 12
             (uint32_t []){ MATCH_EXPRESSION + 11, MATCH_END, }, // Precedence 11
             (uint32_t []){ MATCH_EXPRESSION + 10, MATCH_END, }, // Precedence 10
-            (uint32_t []){ MATCH_EXPRESSION +  9,  MATCH_END, }, // Precedence 9
-            (uint32_t []){ MATCH_EXPRESSION +  8,  MATCH_END, }, // Precedence 8
-            (uint32_t []){ MATCH_EXPRESSION +  7,  MATCH_END, }, // Precedence 7
-            (uint32_t []){ MATCH_EXPRESSION +  6,  MATCH_END, }, // Precedence 6
-            (uint32_t []){ MATCH_EXPRESSION +  5,  MATCH_END, }, // Precedence 5
-            (uint32_t []){ MATCH_EXPRESSION +  4,  MATCH_END, }, // Precedence 4
-            (uint32_t []){ MATCH_EXPRESSION +  3,  MATCH_END, }, // Precedence 3
-            (uint32_t []){ MATCH_EXPRESSION +  2,  MATCH_END, }, // Precedence 2
-            (uint32_t []){ MATCH_EXPRESSION +  1,  MATCH_END, }, // Precedence 1
-
-            
-            // (uint32_t []){              // op binary-operator op
-            //     MATCH_OPERAND,
-            //     MATCH_BINARY_OPERATOR,
-            //     MATCH_OPERAND,
-            //     MATCH_END,
-            // },
-            // (uint32_t []){              // op left-unary-operator
-            //     MATCH_L_UNARY_OPERATOR,
-            //     MATCH_OPERAND,
-            //     MATCH_END,
-            // },
-            // (uint32_t []){              // right-unary-operator op
-            //     MATCH_L_UNARY_OPERATOR,
-            //     MATCH_OPERAND,
-            //     MATCH_END,
-            // },
+            (uint32_t []){ MATCH_EXPRESSION +  9, MATCH_END, }, // Precedence 9
+            (uint32_t []){ MATCH_EXPRESSION +  8, MATCH_END, }, // Precedence 8
+            (uint32_t []){ MATCH_EXPRESSION +  7, MATCH_END, }, // Precedence 7
+            (uint32_t []){ MATCH_EXPRESSION +  6, MATCH_END, }, // Precedence 6
+            (uint32_t []){ MATCH_EXPRESSION +  5, MATCH_END, }, // Precedence 5
+            (uint32_t []){ MATCH_EXPRESSION +  4, MATCH_END, }, // Precedence 4
+            (uint32_t []){ MATCH_EXPRESSION +  3, MATCH_END, }, // Precedence 3
+            (uint32_t []){ MATCH_EXPRESSION +  2, MATCH_END, }, // Precedence 2
+            (uint32_t []){ MATCH_EXPRESSION +  1, MATCH_END, }, // Precedence 1
         },
     },
 
     // remember, a cast is still an operation, so a variable is generalized to an expression
     // which means that dereferencing and member access are effectively ordinary operators
-    
     [MATCH_EXPRESSION + 1] = {
         .flags = MF_LEFT_TO_RIGHT,
         .layouts = (uint32_t *[]){
@@ -560,11 +549,11 @@ mclass_t mclasses[] = {
                 MATCH_EXPRESSION,
                 UTOKEN_DECREMENT | MF_UTOKEN,
                 MATCH_END,
-            },
-            (uint32_t []){              // expression ( parameters )
+            },                          // function call
+            (uint32_t []){              // expression ( expression-list )
                 MATCH_EXPRESSION,
                 UTOKEN_L_RBRACKET | MF_UTOKEN,
-                MATCH_PARAMETERS,
+                MATCH_EXPRESSION_LIST,
                 UTOKEN_R_RBRACKET | MF_UTOKEN,
                 MATCH_END,
             },
@@ -577,9 +566,348 @@ mclass_t mclasses[] = {
             },
             (uint32_t []){              // expression . expression
                 MATCH_EXPRESSION,
-                UTOKEN_L_SBRACKET | MF_UTOKEN,
+                UTOKEN_PERIOD | MF_UTOKEN,
                 MATCH_EXPRESSION,
-                UTOKEN_R_SBRACKET | MF_UTOKEN,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression -> expression
+                MATCH_EXPRESSION,
+                UTOKEN_R_ARROW | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // compound-literal
+                MATCH_COMPOUND_LITERAL,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 2] = {
+        .flags = MF_RIGHT_TO_LEFT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // ++ expression
+                UTOKEN_INCREMENT | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // -- expression
+                UTOKEN_DECREMENT | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // + expression
+                UTOKEN_PLUS | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // - expression
+                UTOKEN_MINUS | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // ! expression
+                UTOKEN_EXCLAIM | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // ~ expression
+                UTOKEN_TILDE | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },                          // type cast
+                                        // TODO: cast-type must be a scalar type or void
+            (uint32_t []){              // ( cast-type ) expression
+                UTOKEN_L_RBRACKET | MF_UTOKEN,
+                MATCH_CAST_TYPE,
+                UTOKEN_R_RBRACKET | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // * expression
+                UTOKEN_STAR | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // & expression
+                UTOKEN_AND | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // sizeof expression
+                DTOKEN_SIZEOF | MF_DTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // alignof expression
+                DTOKEN_ALIGNOF | MF_DTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 3] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression * expression
+                MATCH_EXPRESSION,
+                UTOKEN_STAR | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression / expression
+                MATCH_EXPRESSION,
+                UTOKEN_FSLASH | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression % expression
+                MATCH_EXPRESSION,
+                UTOKEN_PERCENT | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 4] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression + expression
+                MATCH_EXPRESSION,
+                UTOKEN_PLUS | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression - expression
+                MATCH_EXPRESSION,
+                UTOKEN_MINUS | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 5] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression << expression
+                MATCH_EXPRESSION,
+                UTOKEN_LSHIFT | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression >> expression
+                MATCH_EXPRESSION,
+                UTOKEN_RSHIFT | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 6] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression > expression
+                MATCH_EXPRESSION,
+                UTOKEN_R_ABRACKET | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression < expression
+                MATCH_EXPRESSION,
+                UTOKEN_L_ABRACKET | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression >= expression
+                MATCH_EXPRESSION,
+                UTOKEN_GEQUAL | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression <= expression
+                MATCH_EXPRESSION,
+                UTOKEN_LEQUAL | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 7] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression == expression
+                MATCH_EXPRESSION,
+                UTOKEN_EQUALS | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression != expression
+                MATCH_EXPRESSION,
+                UTOKEN_NEQUALS | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 8] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression & expression
+                MATCH_EXPRESSION,
+                UTOKEN_AND | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 9] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression ^ expression
+                MATCH_EXPRESSION,
+                UTOKEN_XOR | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 10] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression | expression
+                MATCH_EXPRESSION,
+                UTOKEN_OR | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 11] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression && expression
+                MATCH_EXPRESSION,
+                UTOKEN_LAND | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 12] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression || expression
+                MATCH_EXPRESSION,
+                UTOKEN_LOR | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 13] = {
+        .flags = MF_RIGHT_TO_LEFT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression ? expression : expression
+                MATCH_EXPRESSION,
+                UTOKEN_QUESTION | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                UTOKEN_COLON | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 14] = {
+        .flags = MF_RIGHT_TO_LEFT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression = expression
+                MATCH_EXPRESSION,
+                UTOKEN_ASSIGN | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression += expression
+                MATCH_EXPRESSION,
+                UTOKEN_ADD_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression -= expression
+                MATCH_EXPRESSION,
+                UTOKEN_SUB_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression *= expression
+                MATCH_EXPRESSION,
+                UTOKEN_MUL_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression /= expression
+                MATCH_EXPRESSION,
+                UTOKEN_DIV_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression %= expression
+                MATCH_EXPRESSION,
+                UTOKEN_MOD_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression <<= expression
+                MATCH_EXPRESSION,
+                UTOKEN_LSHIFT_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression >>= expression
+                MATCH_EXPRESSION,
+                UTOKEN_RSHIFT_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression &= expression
+                MATCH_EXPRESSION,
+                UTOKEN_AND_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression ^= expression
+                MATCH_EXPRESSION,
+                UTOKEN_XOR_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+            (uint32_t []){              // expression |= expression
+                MATCH_EXPRESSION,
+                UTOKEN_OR_EQ | MF_UTOKEN,
+                MATCH_EXPRESSION,
+                MATCH_END,
+            },
+        },
+    },
+    
+    [MATCH_EXPRESSION + 15] = {
+        .flags = MF_LEFT_TO_RIGHT,
+        .layouts = (uint32_t *[]){
+            (uint32_t []){              // expression , expression
+                MATCH_EXPRESSION,
+                UTOKEN_COMMA | MF_UTOKEN,
+                MATCH_EXPRESSION,
                 MATCH_END,
             },
         },
