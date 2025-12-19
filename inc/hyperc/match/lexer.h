@@ -1,5 +1,5 @@
-#ifndef HYPERC_DESCRIPTORS_H
-#define HYPERC_DESCRIPTORS_H
+#ifndef HYPERC_MATCH_LEXER_H
+#define HYPERC_MATCH_LEXER_H
 
 #include <stdint.h>
 
@@ -192,4 +192,4 @@ __inline__ bool is_numeric(char c) {
 
 
 
-#endif /* #ifndef HYPERC_DESCRIPTORS_H */
+#endif /* #ifndef HYPERC_MATCH_LEXER_H */
