@@ -37,13 +37,15 @@
 
 
 #define MF_MATCH_MASK   ( 0x0000FFFF )
-#define MF_ZERO_OR_ONE  ( 0x1<<16 )
 #define MF_OPTIONAL     ( 0x1<<16 )     // maybe flags like this can be handled by the input handler...
-// #define MF_ZERO_OR_MORE ( 0x1<<17 )
-// #define MF_ONE_OR_MORE  ( 0x1<<18 )
+//#define MF_ZERO_OR_ONE  ( 0x1<<16 )
+//#define MF_ZERO_OR_MORE ( 0x1<<17 )
+//#define MF_ONE_OR_MORE  ( 0x1<<18 )
 #define MF_UTOKEN       ( 0x1<<19 )     // ...since these would be handled by the input handler as well
 #define MF_DTOKEN       ( 0x1<<20 )
 #define MF_TOKEN_TYPE   ( 0x1<<21 )
+
+#define MF_NOT_IMPLEMENTED ( 0x1<<31 )
 
 
 

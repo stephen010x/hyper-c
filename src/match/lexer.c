@@ -90,6 +90,9 @@ const char *const dtokens[DTOKEN_LENGTH] = {
     [DTOKEN_COMPLEX]    = "_Complex",
     [DTOKEN_IMAGINARY]  = "_Imaginary",
     [DTOKEN_NORETURN]   = "_Noreturn",
+    [DTOKEN_DECIMAL32]   = "_Decimal32",
+    [DTOKEN_DECIMAL64]   = "_Decimal64",
+    [DTOKEN_DECIMAL128]   = "_Decimal128",
     // TODO: remember to reserve all characters with one or two underscores, followed by an uppercase letter
 };
 
@@ -101,6 +104,8 @@ const char *const dtokens[DTOKEN_LENGTH] = {
 // NOTE, these are processed in this order. So have the longest ones at the beginning
 // or at least make sure nothing that comprises longer operators are in front.
 const char *const utokens[UTOKEN_LENGTH] = {
+
+    [UTOKEN_VARGS]        = "..."
 
     [UTOKEN_R_ARROW]      = "->",
     
