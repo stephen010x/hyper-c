@@ -100,10 +100,6 @@ match_tree_t mtree;
 
 mtree.tree = (uint32_t **[]){
 
-    //////////////////////////////////////////////////////
-    //            EXPRESSIONS                           ##
-    //####################################################
-
     [MATCH_IDENTIFIER] = (uint32_t *[]){
         [TYPE_A] = (uint32_t []){ TOKEN_IDENTIFIER | MF_TOKEN_TYPE, NULL },    // identifier
         NULL,
@@ -118,6 +114,11 @@ mtree.tree = (uint32_t **[]){
         [TYPE_A] = (uint32_t []){ TOKEN_STRING | MF_TOKEN_TYPE, NULL },        // string-literal
         NULL,
     },
+
+
+    //////////////////////////////////////////////////////
+    //            EXPRESSIONS                           ##
+    //####################################################
 
     // primary-expression
     [MATCH_PRIMARY_EXPRESSION] = (uint32_t *[]){
@@ -211,7 +212,7 @@ mtree.tree = (uint32_t **[]){
     },
     
     // storage-class-specifiers
-    [MATCH_GENERIC] = (uint32_t *[]){
+    [MATCH_STORAGE_CLASS_SPECIFIERS] = (uint32_t *[]){
         [TYPE_A] = (uint32_t []){       // storage-class-specifier
             MATCH_STORAGE_CLASS_SPECIFIER,
             NULL,
@@ -231,13 +232,13 @@ mtree.tree = (uint32_t **[]){
             NULL,
         },
         [TYPE_B] = (uint32_t []){       // ++ unary-expression
-            UTOKEN_INCREMENT | MF_UTOKEN
+            UTOKEN_INCREMENT | MF_UTOKEN,
             MATCH_UNARY_EXPRESSION,
             NULL,
         },
         [TYPE_C] = (uint32_t []){       // -- unary-expression
-            UTOKEN_DECREMENT | MF_UTOKEN
-            MATCH_GENERIC,
+            UTOKEN_DECREMENT | MF_UTOKEN,
+            MATCH_UNARY_EXPRESSION,
             NULL,
         },
         [TYPE_D] = (uint32_t []){       // unary-operator cast-expression
@@ -651,7 +652,7 @@ mtree.tree = (uint32_t **[]){
     // TODO: implement later
     // attribute-declaration
     [MATCH_ATTRIBUTE_DECLARATION] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
+        [TYPE_A] = (uint32_t []){       // not implemented yet
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -659,7 +660,7 @@ mtree.tree = (uint32_t **[]){
     },
 
     // storage-class-specifier
-    [MATCH_GENERIC] = (uint32_t *[]){
+    [MATCH_STORAGE_CLASS_SPECIFIER] = (uint32_t *[]){
         [TYPE_A] = (uint32_t []){ DTOKEN_AUTO         | MF_DTOKEN, NULL },  // auto
         [TYPE_B] = (uint32_t []){ DTOKEN_CONSTEXPR    | MF_DTOKEN, NULL },  // constexpr
         [TYPE_C] = (uint32_t []){ DTOKEN_EXTERN       | MF_DTOKEN, NULL },  // extern
@@ -1081,7 +1082,7 @@ mtree.tree = (uint32_t **[]){
     },
 
     // parameter-type-list
-    [MATCH_GENERIC] = (uint32_t *[]){
+    [MATCH_PARAMETER_TYPE_LIST] = (uint32_t *[]){
         [TYPE_A] = (uint32_t []){       // parameter-list
             MATCH_PARAMETER_LIST,
             NULL,
@@ -1143,7 +1144,7 @@ mtree.tree = (uint32_t **[]){
     // abstract-declarator
     [MATCH_ABSTRACT_DECLARATOR] = (uint32_t *[]){
         [TYPE_A] = (uint32_t []){       // pointer
-            MATCH_GENERIC,
+            MATCH_POINTER,
             NULL,
         },
         [TYPE_B] = (uint32_t []){       // pointeropt direct-abstract-declarator
@@ -1155,115 +1156,569 @@ mtree.tree = (uint32_t **[]){
     },
 
     // direct-abstract-declarator
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
+    [MATCH_DIRECT_ABSTRACT_DECLARATOR] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // ( abstract-declarator )
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_ABSTRACT_DECLARATOR,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // array-abstract-declarator attribute-specifier-sequenceopt
+            MATCH_ARRAY_ABSTRACT_DECLARATOR,
+            MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
+            NULL,
+        },
+        [TYPE_C] = (uint32_t []){       // function-abstract-declarator attribute-specifier-sequenceopt
+            MATCH_FUNCTION_ABSTRACT_DECLARATOR,
+            MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             NULL,
         },
         NULL,
     },
     
     // array-abstract-declarator
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
+    [MATCH_ARRAY_ABSTRACT_DECLARATOR] = (uint32_t *[]){
+                // direct-abstract-declaratoropt [ type-qualifier-listopt assignment-expressionopt ]
+        [TYPE_A] = (uint32_t []){ 
+            MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
+            UTOKEN_L_SBRACKET | MF_UTOKEN,
+            MATCH_TYPE_QUALIFIER_LIST | MF_OPTIONAL,
+            MATCH_ASSIGNMENT_EXPRESSION | MF_OPTIONAL,
+            UTOKEN_R_SBRACKET | MF_UTOKEN,
+            NULL,
+        },      // direct-abstract-declaratoropt [ static type-qualifier-listopt assignment-expression ]
+        [TYPE_B] = (uint32_t []){
+            MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
+            UTOKEN_L_SBRACKET | MF_UTOKEN,
+            DTOKEN_STATIC | MF_DTOKEN,
+            MATCH_TYPE_QUALIFIER_LIST | MF_OPTIONAL,
+            MATCH_ASSIGNMENT_EXPRESSION,
+            UTOKEN_R_SBRACKET | MF_UTOKEN,
+            NULL,
+        },      // direct-abstract-declaratoropt [ type-qualifier-list static assignment-expression ]
+        [TYPE_C] = (uint32_t []){
+            MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
+            UTOKEN_L_SBRACKET | MF_UTOKEN,
+            MATCH_TYPE_QUALIFIER_LIST,
+            DTOKEN_STATIC | MF_DTOKEN,
+            MATCH_ASSIGNMENT_EXPRESSION,
+            UTOKEN_R_SBRACKET | MF_UTOKEN,
+            NULL,
+        },      // direct-abstract-declaratoropt [ * ]
+        [TYPE_D] = (uint32_t []){
+            MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
+            UTOKEN_L_SBRACKET | MF_UTOKEN,
+            UTOKEN_STAR | MF_UTOKEN,
+            UTOKEN_R_SBRACKET | MF_UTOKEN,
             NULL,
         },
         NULL,
     },
     
     // function-abstract-declarator
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
+    [MATCH_FUNCTION_ABSTRACT_DECLARATOR] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // direct-abstract-declaratoropt ( parameter-type-listopt )
+            MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_PARAMETER_TYPE_LIST | MF_OPTIONAL,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
             NULL,
         },
         NULL,
     },
 
     // typedef-name
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
-            NULL,
-        },
+    [MATCH_TYPEDEF_NAME] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){ MATCH_IDENTIFIER, NULL }, // identifier
         NULL,
     },
 
     // braced-initializer
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
+    [MATCH_BRACED_INITIALIZER] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // { }
+            UTOKEN_L_CBRACKET | MF_UTOKEN,
+            UTOKEN_R_CBRACKET | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // { initializer-list }
+            UTOKEN_L_CBRACKET | MF_UTOKEN,
+            MATCH_INITIALIZER_LIST,
+            UTOKEN_R_CBRACKET | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_C] = (uint32_t []){       // { initializer-list , }
+            UTOKEN_L_CBRACKET | MF_UTOKEN,
+            MATCH_INITIALIZER_LIST,
+            UTOKEN_COMMA | MF_UTOKEN,
+            UTOKEN_R_CBRACKET | MF_UTOKEN,
             NULL,
         },
         NULL,
     },
 
     // initializer
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
-            NULL,
-        },
+    [MATCH_INITIALIZER] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){ MATCH_ASSIGNMENT_EXPRESSION, NULL },  // assignment-expression
+        [TYPE_B] = (uint32_t []){ MATCH_BRACED_INITIALIZER,    NULL },  // braced-initializer
         NULL,
     },
 
     // initializer-list
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
+    [MATCH_INITIALIZER_LIST] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // designationopt initializer
+            MATCH_DESIGNATION | MF_OPTIONAL,
+            MATCH_INITIALIZER,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // initializer-list , designationopt initializer
+            MATCH_INITIALIZER_LIST,
+            UTOKEN_COMMA | MF_UTOKEN,
+            MATCH_DESIGNATION | MF_OPTIONAL,
+            MATCH_INITIALIZER,
             NULL,
         },
         NULL,
     },
 
     // designation
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
+    [MATCH_DESIGNATION] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // designator-list =
+            MATCH_DESIGNATOR_LIST,
+            UTOKEN_ASSIGN | MF_UTOKEN,
             NULL,
         },
         NULL,
     },
 
     // designator-list
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
+    [MATCH_DESIGNATOR_LIST] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // designator
+            MATCH_DESIGNATOR,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // designator-list designator
+            MATCH_DESIGNATOR_LIST,
+            MATCH_DESIGNATOR,
             NULL,
         },
         NULL,
     },
 
-    // designator
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
+    // MATCH_DESIGNATOR
+    [MATCH_DESIGNATOR] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // [ constant-expression ]
+            UTOKEN_L_SBRACKET | MF_UTOKEN,
+            MATCH_CONSTANT_EXPRESSION,
+            UTOKEN_R_SBRACKET | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // . identifier
+            UTOKEN_PERIOD | MF_UTOKEN,
+            MATCH_IDENTIFIER,
             NULL,
         },
         NULL,
     },
 
     // static_assert-declaration
-    [MATCH_GENERIC] = (uint32_t *[]){
-        [TYPE_A] = (uint32_t []){       // generic
-            MATCH_GENERIC,
+    [MATCH_STATIC_ASSERT_DECLARATION] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // static_assert ( constant-expression , string-literal ) ;
+            MATCH_STATIC_ASSERT,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_CONSTANT_EXPRESSION
+            UTOKEN_COMMA | MF_UTOKEN,
+            MATCH_STRING_LITERAL,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            UTOKEN_SEMICOLON | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // static_assert ( constant-expression ) ;
+            MATCH_STATIC_ASSERT,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_CONSTANT_EXPRESSION,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            UTOKEN_SEMICOLON | MF_UTOKEN,
             NULL,
         },
         NULL,
     },
 
     // attribute-specifier-sequence
+    [MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+    
     // attribute-specifier
+    [MATCH_ATTRIBUTE_SPECIFIER] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+    
     // attribute-list
+    [MATCH_ATTRIBUTE_LIST] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+
     // attribute
+    [MATCH_ATTRIBUTE] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+
     // attribute-token
+    [MATCH_ATTRIBUTE_TOKEN] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+
     // standard-attribute
+    [MATCH_STANDARD_ATTRIBUTE] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+
     // attribute-prefixed-token
+    [MATCH_ATTRIBUTE_PREFIX_TOKEN] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+
     // attribute-prefix
+    [MATCH_ATTRIBUTE_PREFIX] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+
     // attribute-argument-clause
+    [MATCH_ATTRIBUTE_ARGUMENT_CLAUSE] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+
     // balanced-token-sequence
+    [MATCH_BALANCED_TOKEN_SEQUENCE] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
     // balanced-token
+    [MATCH_BALANCED_TOKEN] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // !! not yet implemented !!
+            MF_NOT_IMPLEMENTED,
+            NULL,
+        },
+        NULL,
+    },
+
+
+    //////////////////////////////////////////////////////
+    //            STATEMENTS                            ##
+    //####################################################
+
+    // statement
+    [MATCH_STATEMENT] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){ MATCH_LABELED_STATEMENT,   NULL },    // labeled-statement
+        [TYPE_B] = (uint32_t []){ MATCH_UNLABELED_STATEMENT, NULL },    // unlabeled-statement
+        NULL,
+    },
+
+    // unlabeled-statement
+    [MATCH_UNLABELED_STATEMENT] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // expression-statement
+            MATCH_EXPRESSION_STATEMENT,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // attribute-specifier-sequenceopt primary-block
+            MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
+            MATCH_PRIMARY_BLOCK,
+            NULL,
+        },
+        [TYPE_C] = (uint32_t []){       // attribute-specifier-sequenceopt jump-statement
+            MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
+            MATCH_JUMP_STATEMENT,
+            NULL,
+        },
+        NULL,
+    },
+
+    // primary-block
+    [MATCH_PRIMARY_BLOCK] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){ MATCH_COMPOUND_STATEMENT,  NULL },    // compound-statement
+        [TYPE_B] = (uint32_t []){ MATCH_SELECTION_STATEMENT, NULL },    // selection-statement
+        [TYPE_C] = (uint32_t []){ MATCH_ITERATION_STATEMENT, NULL },    // iteration-statement
+        NULL,
+    },
+
+    // secondary-block
+    [MATCH_SECONDARY_BLOCK] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){ MATCH_STATEMENT,  NULL },     // statement
+        NULL,
+    },
+
+    // label
+    [MATCH_LABEL] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // attribute-specifier-sequenceopt identifier :
+            MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTINOAL,
+            MATCH_IDENTIFIER,
+            UTOKEN_COLON | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // attribute-specifier-sequenceopt case constant-expression :
+            MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTINOAL,
+            DTOKEN_CASE | MF_DTOKEN,
+            MATCH_CONSTANT_EXPRESSION,
+            UTOKEN_COLON | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_C] = (uint32_t []){       // attribute-specifier-sequenceopt default :
+            MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTINOAL,
+            DTOKEN_DEFAULT | MF_DTOKEN,
+            UTOKEN_COLON | MF_UTOKEN,
+            NULL,
+        },
+        NULL,
+    },
+
+    // labeled-statement
+    [MATCH_LABELED_STATEMENT] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // label statement
+            MATCH_LABEL,
+            MATCH_STATEMENT,
+            NULL,
+        },
+        NULL,
+    },
+
+    // compound-statement
+    [MATCH_COMPOUND_STATEMENT] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // { block-item-listopt }
+            UTOKEN_L_CBRACKET | MF_UTOKEN,
+            MATCH_BLOCK_ITEM_LIST | MF_OPTIONAL,
+            UTOKEN_R_CBRACKET | MF_UTOKEN,
+            NULL,
+        },
+        NULL,
+    },
+
+    // block-item-list
+    [MATCH_BLOCK_ITEM_LIST] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // block-item
+            MATCH_BLOCK_ITEM,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // block-item-list block-item
+            MATCH_BLOCK_ITEM_LIST,
+            MATCH_BLOCK_ITEM
+            NULL,
+        },
+        NULL,
+    },
+
+    // block-item
+    [MATCH_BLOCK_ITEM] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){ MATCH_DECLARATION,         NULL },    // declaration
+        [TYPE_B] = (uint32_t []){ MATCH_UNLABELED_STATEMENT, NULL },    // unlabeled-statement
+        [TYPE_C] = (uint32_t []){ MATCH_LABEL,               NULL },    // label
+        NULL,
+    },
+
+    // expression-statement
+    [MATCH_EXPRESSION_STATEMENT] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // expressionopt ;
+            MATCH_EXPRESSION | MF_OPTIONAL,
+            UTOKEN_SEMICOLON | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // attribute-specifier-sequence expression ;
+            MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE,
+            MATCH_EXPRESSION,
+            UTOKEN_SEMICOLON | MF_UTOKEN,
+            NULL,
+        },
+        NULL,
+    },
+
+    // selection-statement
+    [MATCH_SELECTION_STATEMENT] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // if ( expression ) secondary-block
+            DTOKEN_IF | MF_DTOKEN,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_EXPRESSION,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            MATCH_SECONDARY_BLOCK,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // if ( expression ) secondary-block else secondary-block
+            DTOKEN_IF | MF_DTOKEN,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_EXPRESSION,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            MATCH_SECONDARY_BLOCK,
+            DTOKEN_ELSE | MF_DTOKEN,
+            MATCH_SECONDARY_BLOCK,
+            NULL,
+        },
+        [TYPE_C] = (uint32_t []){       // switch ( expression ) secondary-block
+            DTOKEN_SWITCH | MF_DTOKEN,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_EXPRESSION,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            MATCH_SECONDARY_BLOCK,
+            NULL,
+        },
+        NULL,
+    },
+
+    // iteration-statement
+    [MATCH_ITERATION_STATEMENT] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // while ( expression ) secondary-block
+            DTOKEN_WHILE | MF_DTOKEN,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_EXPRESSION,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            MATCH_SECONDARY_BLOCK,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // do secondary-block while ( expression ) ;
+            DTOKEN_DO | MF_DTOKEN,
+            MATCH_SECONDARY_BLOCK,
+            DTOKEN_WHILE | MF_DTOKEN,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_EXPRESSION,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            UTOKEN_SEMICOLON | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_C] = (uint32_t []){   // for ( expressionopt ; expressionopt ; expressionopt ) secondary-block
+            DTOKEN_FOR | MF_DTOKEN,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_EXPRESSION | MF_OPTIONAL,
+            UTOKEN_SEMICOLON | MF_UTOKEN,
+            MATCH_EXPRESSION | MF_OPTIONAL,
+            UTOKEN_SEMICOLON | MF_UTOKEN,
+            MATCH_EXPRESSION | MF_OPTIONAL,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            MATCH_SECONDARY_BLOCK,
+            NULL,
+        },
+        [TYPE_D] = (uint32_t []){       // for ( declaration expressionopt ; expressionopt ) secondary-block
+            DTOKEN_FOR | MF_DTOKEN,
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_DECLARATION,              // declarations end with a semicolon, so still two
+            MATCH_EXPRESSION | MF_OPTIONAL,
+            UTOKEN_SEMICOLON | MF_UTOKEN,
+            MATCH_EXPRESSION | MF_OPTIONAL,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            MATCH_SECONDARY_BLOCK,
+            NULL,
+        },
+        NULL,
+    },
+
+    // jump-statement
+    [MATCH_JUMP_STATEMENT] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // goto identifier ;
+            DTOKEN_GOTO | MF_DTOKEN,
+            MATCH_IDENTIFIER,
+            UTOKEN_SEMICOLON | MF_SEMICOLON,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // continue ;
+            DTOKEN_CONTINUE | MF_DTOKEN,
+            UTOKEN_SEMICOLON | MF_SEMICOLON,
+            NULL,
+        },
+        [TYPE_C] = (uint32_t []){       // break ;
+            DTOKEN_BREAK | MF_DTOKEN,
+            UTOKEN_SEMICOLON | MF_SEMICOLON,
+            NULL,
+        },
+        [TYPE_D] = (uint32_t []){       // return expressionopt ;
+            DTOKEN_RETURN | MF_DTOKEN,
+            MATCH_EXPRESSION | MF_OPTIONAL,
+            UTOKEN_SEMICOLON | MF_SEMICOLON,
+            NULL,
+        },
+        NULL,
+    },
+
+
+    //////////////////////////////////////////////////////
+    //            EXTERNAL DEFINITIONS                  ##
+    //####################################################
+
+            // THIS IS THE PRIME MATCHING RULE
+            
+    // translation-unit
+    [MATCH_TRANSLATION_UNIT] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){       // external-declaration
+            MATCH_EXTERNAL_DECLARATION,
+            NULL,
+        },
+        [TYPE_B] = (uint32_t []){       // translation-unit external-declaration
+            MATCH_TRANSLATION_UNIT,
+            MATCH_EXTERNAL_DECLARATION,
+            NULL,
+        },
+        NULL,
+    },
+    
+    // external-declaration
+    [MATCH_EXTERNAL_DECLARATION] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){ MATCH_FUNCTION_DEFINITION, NULL },    // function-definition
+        [TYPE_B] = (uint32_t []){ MATCH_DECLARATION,         NULL },    // declaration
+        NULL,
+    },
+    
+    // function-definition
+    [MATCH_FUNCTION_DEFINITION] = (uint32_t *[]){
+                // attribute-specifier-sequenceopt declaration-specifiers declarator function-body
+        [TYPE_A] = (uint32_t []){
+            MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
+            MATCH_DECLARATION_SPECIFIERS,
+            MATCH_DECLARATOR,
+            MATCH_FUNCTION_BODY,
+            NULL,
+        },
+        NULL,
+    },
+    
+    // function-body
+    [MATCH_FUNCTION_BODY] = (uint32_t *[]){
+        [TYPE_A] = (uint32_t []){ MATCH_COMPOUND_STATEMENT, NULL }, // compound-statement
+        NULL,
+    },
 };
 
 
@@ -1278,3 +1733,157 @@ mtree.tree = (uint32_t **[]){
     },
 
 */
+
+
+
+
+
+
+char *match_type_str[TYPE_Z+1] = {
+    [TYPE_A] = "TYPE_A"
+    [TYPE_B] = "TYPE_B"
+    [TYPE_C] = "TYPE_C"
+    [TYPE_D] = "TYPE_D"
+    [TYPE_E] = "TYPE_E"
+    [TYPE_F] = "TYPE_F"
+    [TYPE_G] = "TYPE_G"
+    [TYPE_H] = "TYPE_H"
+    [TYPE_I] = "TYPE_I"
+    [TYPE_J] = "TYPE_J"
+    [TYPE_K] = "TYPE_K"
+    [TYPE_L] = "TYPE_L"
+    [TYPE_M] = "TYPE_M"
+    [TYPE_N] = "TYPE_N"
+    [TYPE_O] = "TYPE_O"
+    [TYPE_P] = "TYPE_P"
+    [TYPE_Q] = "TYPE_Q"
+    [TYPE_R] = "TYPE_R"
+    [TYPE_S] = "TYPE_S"
+    [TYPE_T] = "TYPE_T"
+    [TYPE_U] = "TYPE_U"
+    [TYPE_V] = "TYPE_V"
+    [TYPE_W] = "TYPE_W"
+    [TYPE_X] = "TYPE_X"
+    [TYPE_Y] = "TYPE_Y"
+    [TYPE_Z] = "TYPE_Z"
+}
+
+
+
+
+
+char *match_rule_str[MATCH_RULE_LEN] = {
+    [MATCH_END]                         = NULL,
+
+    ///////////////////////
+    [MATCH_IDENTIFIER]                  = "MATCH_IDENTIFIER",
+    [MATCH_CONSTANT]                    = "MATCH_CONSTANT",
+    [MATCH_STRING_LITERAL]              = "MATCH_STRING_LITERAL",
+
+    // EXPRESSIONS
+    [MATCH_PRIMARY_EXPRESSION]          = "MATCH_PRIMARY_EXPRESSION",
+    [MATCH_POSTFIX_EXPRESSION]          = "MATCH_POSTFIX_EXPRESSION",
+    [MATCH_ARGUMENT_EXPRESSION_LIST]    = "MATCH_ARGUMENT_EXPRESSION_LIST",
+    [MATCH_COMPOUND_LITERAL]            = "MATCH_COMPOUND_LITERAL",
+    [MATCH_STORAGE_CLASS_SPECIFIERS]    = "MATCH_STORAGE_CLASS_SPECIFIERS",
+    [MATCH_UNARY_EXPRESSION]            = "MATCH_UNARY_EXPRESSION",
+    [MATCH_UNARY_OPERATOR]              = "MATCH_UNARY_OPERATOR",
+    [MATCH_CAST_EXPRESSION]             = "MATCH_CAST_EXPRESSION",
+    [MATCH_MULTIPLICATIVE_EXPRESSION]   = "MATCH_MULTIPLICATIVE_EXPRESSION",
+    [MATCH_ADDITIVE_EXPRESSION]         = "MATCH_ADDITIVE_EXPRESSION",
+    [MATCH_SHIFT_EXPRESSION]            = "MATCH_SHIFT_EXPRESSION",
+    [MATCH_RELATIONAL_EXPRESSION]       = "MATCH_RELATIONAL_EXPRESSION",
+    [MATCH_EQUALITY_EXPRESSION]         = "MATCH_EQUALITY_EXPRESSION",
+    [MATCH_AND_EXPRESSION]              = "MATCH_AND_EXPRESSION",
+    [MATCH_EXCLUSIVE_OR_EXPRESSION]     = "MATCH_EXCLUSIVE_OR_EXPRESSION",
+    [MATCH_INCLUSIVE_OR_EXPRESSION]     = "MATCH_INCLUSIVE_OR_EXPRESSION",
+    [MATCH_LOGICAL_AND_EXPRESSION]      = "MATCH_LOGICAL_AND_EXPRESSION",
+    [MATCH_LOGICAL_OR_EXPRESSION]       = "MATCH_LOGICAL_OR_EXPRESSION",
+    [MATCH_CONDITIONAL_EXPRESSION]      = "MATCH_CONDITIONAL_EXPRESSION",
+    [MATCH_ASSIGNMENT_EXPRESSION]       = "MATCH_ASSIGNMENT_EXPRESSION",
+    [MATCH_ASSIGNMENT_OPERATOR]         = "MATCH_ASSIGNMENT_OPERATOR",
+    [MATCH_EXPRESSION]                  = "MATCH_EXPRESSION",
+    [MATCH_CONSTANT_EXPRESSION]         = "MATCH_CONSTANT_EXPRESSION",
+
+    // DECLARATIONS
+    [MATCH_DECLARATION]                 = "MATCH_DECLARATION",
+    [MATCH_DECLARATION_SPECIFIER]       = "MATCH_DECLARATION_SPECIFIER",
+    [MATCH_DECLARATION_SPECIFIER]       = "MATCH_DECLARATION_SPECIFIER",
+    [MATCH_INIT_DECLARATOR_LIST]        = "MATCH_INIT_DECLARATOR_LIST",
+    [MATCH_INIT_DECLARATOR]             = "MATCH_INIT_DECLARATOR",
+    [MATCH_ATTRIBUTE_DECLARATION]       = "MATCH_ATTRIBUTE_DECLARATION",
+    [MATCH_STORAGE_CLASS_SPECIFIER]     = "MATCH_STORAGE_CLASS_SPECIFIER",
+    [MATCH_TYPE_SPECIFIER]              = "MATCH_TYPE_SPECIFIER",
+    [MATCH_STRUCT_OR_UNION_SPECIFIER]   = "MATCH_STRUCT_OR_UNION_SPECIFIER",
+    [MATCH_STRUCT_OR_UNION]             = "MATCH_STRUCT_OR_UNION",
+    [MATCH_MEMBER_DECLARATION_LIST]     = "MATCH_MEMBER_DECLARATION_LIST",
+    [MATCH_MEMBER_DECLARATION]          = "MATCH_MEMBER_DECLARATION",
+    [MATCH_SPECIFIER_QUALIFIER_LIST]    = "MATCH_SPECIFIER_QUALIFIER_LIST",
+    [MATCH_TYPE_SPECIFIER_QUALIFIER]    = "MATCH_TYPE_SPECIFIER_QUALIFIER",
+    [MATCH_MEMBER_DECLARATOR_LIST]      = "MATCH_MEMBER_DECLARATOR_LIST",
+    [MATCH_MEMBER_DECLARATOR]           = "MATCH_MEMBER_DECLARATOR",
+    [MATCH_ENUM_SPECIFIER]              = "MATCH_ENUM_SPECIFIER",
+    [MATCH_ENUMERATOR_LIST]             = "MATCH_ENUMERATOR_LIST",
+    [MATCH_ENUMERATOR]                  = "MATCH_ENUMERATOR",
+    [MATCH_ENUM_TYPE_SPECIFIER]         = "MATCH_ENUM_TYPE_SPECIFIER",
+    [MATCH_ATOMIC_TYPE_SPECIFIER]       = "MATCH_ATOMIC_TYPE_SPECIFIER",
+    [MATCH_TYPEOF_SPECIFIER]            = "MATCH_TYPEOF_SPECIFIER",
+    [MATCH_TYPEOF_SPECIFIER_ARGUMENT]   = "MATCH_TYPEOF_SPECIFIER_ARGUMENT",
+    [MATCH_TYPE_QUALIFIER]              = "MATCH_TYPE_QUALIFIER",
+    [MATCH_FUNCTION_SPECIFIER]          = "MATCH_FUNCTION_SPECIFIER",
+    [MATCH_ALIGNMENT_SPECIFIER]         = "MATCH_ALIGNMENT_SPECIFIER",
+    [MATCH_DECLARATOR]                  = "MATCH_DECLARATOR",
+    [MATCH_DIRECT_DECLARATOR]           = "MATCH_DIRECT_DECLARATOR",
+    [MATCH_ARRAY_DECLARATOR]            = "MATCH_ARRAY_DECLARATOR",
+    [MATCH_FUNCTION_DECLARATOR]         = "MATCH_FUNCTION_DECLARATOR",
+    [MATCH_POINTER]                     = "MATCH_POINTER",
+    [MATCH_TYPE_QUALIFIER_LIST]         = "MATCH_TYPE_QUALIFIER_LIST",
+    [MATCH_PARAMETER_TYPE_LIST]         = "MATCH_PARAMETER_TYPE_LIST",
+    [MATCH_PARAMETER_LIST]              = "MATCH_PARAMETER_LIST",
+    [MATCH_PARAMETER_DECLARATION]       = "MATCH_PARAMETER_DECLARATION",
+    [MATCH_TYPE_NAME]                   = "MATCH_TYPE_NAME",
+    [MATCH_ABSTRACT_DECLARATOR]         = "MATCH_ABSTRACT_DECLARATOR",
+    [MATCH_DIRECT_ABSTRACT_DECLARATOR]  = "MATCH_DIRECT_ABSTRACT_DECLARATOR",
+    [MATCH_ARRAY_ABSTRACT_DECLARATOR]   = "MATCH_ARRAY_ABSTRACT_DECLARATOR",
+    [MATCH_FUNCTION_ABSTRACT_DECLARATOR]= "MATCH_FUNCTION_ABSTRACT_DECLARATOR",
+    [MATCH_TYPEDEF_NAME]                = "MATCH_TYPEDEF_NAME",
+    [MATCH_BRACED_INITIALIZER]          = "MATCH_BRACED_INITIALIZER",
+    [MATCH_INITIALIZER]                 = "MATCH_INITIALIZER",
+    [MATCH_INITIALIZER_LIST]            = "MATCH_INITIALIZER_LIST",
+    [MATCH_DESIGNATION]                 = "MATCH_DESIGNATION",
+    [MATCH_DESIGNATOR_LIST]             = "MATCH_DESIGNATOR_LIST",
+    [MATCH_DESIGNATOR]                  = "MATCH_DESIGNATOR",
+    [MATCH_STATIC_ASSERT_DECLARATION]   = "MATCH_STATIC_ASSERT_DECLARATION",
+    [MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE]= "MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE",
+    [MATCH_ATTRIBUTE_SPECIFIER]         = "MATCH_ATTRIBUTE_SPECIFIER",
+    [MATCH_ATTRIBUTE_LIST]              = "MATCH_ATTRIBUTE_LIST",
+    [MATCH_ATTRIBUTE]                   = "MATCH_ATTRIBUTE",
+    [MATCH_ATTRIBUTE_TOKEN]             = "MATCH_ATTRIBUTE_TOKEN",
+    [MATCH_STANDARD_ATTRIBUTE]          = "MATCH_STANDARD_ATTRIBUTE",
+    [MATCH_ATTRIBUTE_PREFIX_TOKEN]      = "MATCH_ATTRIBUTE_PREFIX_TOKEN",
+    [MATCH_ATTRIBUTE_PREFIX]            = "MATCH_ATTRIBUTE_PREFIX",
+    [MATCH_ATTRIBUTE_ARGUMENT_CLAUSE]   = "MATCH_ATTRIBUTE_ARGUMENT_CLAUSE",
+    [MATCH_BALANCED_TOKEN_SEQUENCE]     = "MATCH_BALANCED_TOKEN_SEQUENCE",
+    [MATCH_BALANCED_TOKEN]              = "MATCH_BALANCED_TOKEN",
+
+    // STATEMENTS
+    [MATCH_STATEMENT]                   = "MATCH_STATEMENT",
+    [MATCH_UNLABELED_STATEMENT]         = "MATCH_UNLABELED_STATEMENT",
+    [MATCH_PRIMARY_BLOCK]               = "MATCH_PRIMARY_BLOCK",
+    [MATCH_SECONDARY_BLOCK]             = "MATCH_SECONDARY_BLOCK",
+    [MATCH_LABEL]                       = "MATCH_LABEL",
+    [MATCH_LABELED_STATEMENT]           = "MATCH_LABELED_STATEMENT",
+    [MATCH_COMPOUND_STATEMENT]          = "MATCH_COMPOUND_STATEMENT",
+    [MATCH_BLOCK_ITEM_LIST]             = "MATCH_BLOCK_ITEM_LIST",
+    [MATCH_BLOCK_ITEM]                  = "MATCH_BLOCK_ITEM",
+    [MATCH_EXPRESSION_STATEMENT]        = "MATCH_EXPRESSION_STATEMENT",
+    [MATCH_SELECTION_STATEMENT]         = "MATCH_SELECTION_STATEMENT",
+    [MATCH_ITERATION_STATEMENT]         = "MATCH_ITERATION_STATEMENT",
+    [MATCH_JUMP_STATEMENT]              = "MATCH_JUMP_STATEMENT",
+
+    // EXTERNAL DEFINITIONS
+    [MATCH_TRANSLATION_UNIT]            = "MATCH_TRANSLATION_UNIT",
+    [MATCH_EXTERNAL_DECLARATION]        = "MATCH_EXTERNAL_DECLARATION",
+    [MATCH_FUNCTION_DEFINITION]         = "MATCH_FUNCTION_DEFINITION",
+    [MATCH_FUNCTION_BODY]               = "MATCH_FUNCTION_BODY",
+};
