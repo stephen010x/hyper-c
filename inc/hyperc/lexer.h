@@ -57,7 +57,7 @@ typedef struct {
 
 
 
-extern char *token_names[];
+extern const char *const token_names[];
 
 
 
@@ -65,6 +65,7 @@ extern char *token_names[];
 
 void next_token(token_t *restrict token, const char *restrict buff, size_t *restrict index);
 int tokenize_buffer(token_array_t *restrict array, const char *restrict buff);
+void print_token(token_t *token);
 void print_token_array(token_array_t *array);
 
 
@@ -100,6 +101,13 @@ __inline__ token_t *token_array_insert(token_array_t *restrict array, token_t *r
         *newtoken = *token;
 
     return newtoken;
+}
+
+
+__inline__ char *get_token_name(token_t *token) {
+    if (token->type < 0 || token->type > TOKEN_EOF)
+        return TOKEN_INVALID_STR;
+    return token_names[token->type];
 }
 
 

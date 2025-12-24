@@ -63,7 +63,7 @@ const char* filename_from_path(const char* path);
 #   define error(__rcode) do {
         _Pragma("GCC diagnostic push")                          \
         _Pragma("GCC diagnostic ignored \"-Wunused-value\"")    \
-        return(__rcode);                                        \
+        return (__rcode);                                       \
         _Pragma("GCC diagnostic pop")                           \
     } while(0)
 
@@ -100,7 +100,7 @@ const char* filename_from_path(const char* path);
 #   define debugf(...)      NOP()
 
 
-#   define debug(__statement) NOP()
+#   define DEBUG(__statement) NOP()
 
 
 #else
@@ -191,7 +191,7 @@ const char* filename_from_path(const char* path);
     } while(0)
 
 
-#   define debug(__statement) do {      \
+#   define DEBUG(__statement) do {      \
         __statement                     \
     } while(0)
 

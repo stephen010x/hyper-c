@@ -17,7 +17,7 @@
 
 
 
-char *token_names[] = {
+const char *const token_names[] = {
     [TOKEN_NULL]        = "TOKEN_NULL     ",
     [TOKEN_WHITESPACE]  = "TOKEN_WHITESPAC",
     [TOKEN_NEWLINE]     = "TOKEN_NEWLINE  ",
@@ -31,7 +31,8 @@ char *token_names[] = {
     [TOKEN_EOF]         = "TOKEN_EOF      ",
 };
 
-#define TOKEN_INVALID_STR "TOKEN_INVALID  "
+const char token_invalid_str[] = "TOKEN_INVALID  ";
+#define TOKEN_INVALID_STR token_invalid_str
 
 
 
@@ -52,11 +53,6 @@ char *token_names[] = {
 #define lexer_error(__format, ...) do {                                         \
     printf(STR_RED("[lexer error]") "\t" __format __VA_OPT__(,) __VA_ARGS__);   \
 } while(0)
-
-
-
-
-void print_token(token_t *token);
 
 
 
@@ -426,8 +422,10 @@ int tokenize_buffer(token_array_t *restrict array, const char *restrict buff) {
 
 
 void print_token_array(token_array_t *array) {
-    for (size_t i = 0; i < array->tlen; i++)
+    for (size_t i = 0; i < array->tlen; i++) {
         print_token(&array->tokens[i]);
+        printf("\n");
+    }
 }
 
 
@@ -527,6 +525,6 @@ void print_token(token_t *token) {
     
     
     printf_wesc("%s", str); // passes str as argument rather than format so as to not confuse format strings
-    printf("\n");
+    //printf("\n");
 }
 

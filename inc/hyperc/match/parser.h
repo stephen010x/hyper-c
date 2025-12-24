@@ -1,63 +1,127 @@
+// hyperc/match/parser.h
+
 #ifndef METAC_MATCH_PARSER_H
 #define METAC_MATCH_PARSER_H
 
 
 
+
+/* (kinda cool)
+
+# Arity Series (latin)
+
+    0 - Nullary
+    1 - Unary
+    2 - Binary
+    3 - Ternary
+    4 - Quaternary
+
+
+# Adicity Series (greek)
+
+    0 - Niladic
+    1 - Monadic
+    2 - Dyadic
+    3 - Triadic
+    4 - Tetradic
+
+*/
+
+
+
 #include <stdint.h>
 
-
-
-#define TYPE_A  0
-#define TYPE_B  1
-#define TYPE_C  2
-#define TYPE_D  3
-#define TYPE_E  4
-#define TYPE_F  5
-#define TYPE_G  6
-#define TYPE_H  7
-#define TYPE_I  8
-#define TYPE_J  9
-#define TYPE_K  10
-#define TYPE_L  11
-#define TYPE_M  12
-#define TYPE_N  13
-#define TYPE_O  14
-#define TYPE_P  15
-#define TYPE_Q  16
-#define TYPE_R  17
-#define TYPE_S  18
-#define TYPE_T  19
-#define TYPE_U  20
-#define TYPE_V  21
-#define TYPE_W  22
-#define TYPE_X  23
-#define TYPE_Y  24
-#define TYPE_Z  25
-
-
-
-#define MF_FLAG_MASK    ( 0xFFFF0000 )
-#define MF_FLAG_SHIFT   16
-#define MF_MATCH_MASK   ( 0x0000FFFF )
-#define MF_OPTIONAL     ( 0x1<<16 )     // maybe flags like this can be handled by the input handler...
-//#define MF_ZERO_OR_ONE  ( 0x1<<16 )
-//#define MF_ZERO_OR_MORE ( 0x1<<17 )
-//#define MF_ONE_OR_MORE  ( 0x1<<18 )
-#define MF_UTOKEN       ( 0x1<<19 )     // ...since these would be handled by the input handler as well
-#define MF_DTOKEN       ( 0x1<<20 )
-#define MF_TOKEN_TYPE   ( 0x1<<21 )
-
-#define MF_NOT_IMPLEMENTED ( 0x1<<31 )
+#include "hyperc/parser.h"
 
 
 
 
-// TODO: Order these from easiest to determine/match to hardest
+#define TYPE_FLAGS 0
+#define TYPE_A  1
+#define TYPE_B  2
+#define TYPE_C  3
+#define TYPE_D  4
+#define TYPE_E  5
+#define TYPE_F  6
+#define TYPE_G  7
+#define TYPE_H  8
+#define TYPE_I  9
+#define TYPE_J  10
+#define TYPE_K  11
+#define TYPE_L  12
+#define TYPE_M  13
+#define TYPE_N  14
+#define TYPE_O  15
+#define TYPE_P  16
+#define TYPE_Q  17
+#define TYPE_R  18
+#define TYPE_S  19
+#define TYPE_T  20
+#define TYPE_U  21
+#define TYPE_V  22
+#define TYPE_W  23
+#define TYPE_X  24
+#define TYPE_Y  25
+#define TYPE_Z  26
+
+
+
+// #define MF_FLAG_MASK    ( 0xFFFF0000 )
+// #define MF_FLAG_SHIFT   16
+// #define MF_MATCH_MASK   ( 0x0000FFFF )
+// #define MF_OPTIONAL     ( 0b1<<16 )     // maybe flags like this can be handled by the input handler...
+// //#define MF_ZERO_OR_ONE  ( 0b1<<16 )
+// //#define MF_ZERO_OR_MORE ( 0b1<<17 )
+// //#define MF_ONE_OR_MORE  ( 0b1<<18 )
+// #define MF_UTOKEN       ( 0b1<<19 )     // ...since these would be handled by the input handler as well
+// #define MF_DTOKEN       ( 0b1<<20 )
+// #define MF_TOKEN_TYPE   ( 0b1<<21 )
+// #define MF_COLLAPSE     ( 0b1<<22 )
+// 
+// #define MF_OUT_MASK     ( 0b1111<<23 )
+// #define MF_OUT_SHIFT    23
+// 
+// #define MF_NOT_IMPLEMENTED ( 0b1<<31 )
+
+
+
+#define MF_UTOKEN       ( 0b1<<16 )     // ...since these would be handled by the input handler as well
+#define MF_DTOKEN       ( 0b1<<17 )
+#define MF_TOKEN_TYPE   ( 0b1<<18 )
+//#define MF_CONDENSE     ( 0b1<<19 )
+
+#define MF_OUT_MASK     ( 0b1111<<23 )
+#define MF_OUT_SHIFT    23
+
+
+#define OUT_0   (  0<<MF_OUT_SHIFT )
+#define OUT_1   (  1<<MF_OUT_SHIFT )
+#define OUT_2   (  2<<MF_OUT_SHIFT )
+#define OUT_3   (  3<<MF_OUT_SHIFT )
+#define OUT_4   (  4<<MF_OUT_SHIFT )
+#define OUT_5   (  5<<MF_OUT_SHIFT )
+#define OUT_6   (  6<<MF_OUT_SHIFT )
+#define OUT_7   (  7<<MF_OUT_SHIFT )
+#define OUT_8   (  8<<MF_OUT_SHIFT )
+#define OUT_9   (  9<<MF_OUT_SHIFT )
+#define OUT_10  ( 10<<MF_OUT_SHIFT )
+#define OUT_11  ( 11<<MF_OUT_SHIFT )
+#define OUT_12  ( 12<<MF_OUT_SHIFT )
+#define OUT_13  ( 13<<MF_OUT_SHIFT )
+#define OUT_14  ( 14<<MF_OUT_SHIFT )
+#define OUT_15  ( 15<<MF_OUT_SHIFT )
+
+
+
+
+
+
 enum {
-    MATCH_END = 0,
+    //MATCH_END = 0,
+    // use NULL
 
     ///////////////////////
-    MATCH_IDENTIFIER,
+    MATCH_IDENTIFIER = 1,
     MATCH_CONSTANT,
     MATCH_STRING_LITERAL,
 
@@ -171,45 +235,7 @@ enum {
     ///////////////////////
     MATCH_RULE_LEN
 };
-typedef uint32_t match_rule_t;
 
-
-
-
-
-// typedef struct {
-//     uint32_t **layouts;
-// } mclass_t;
-
-
-typedef struct {
-    void (*input_handler)(void);    // TODO: Use different function prototype
-    void (*output_handler)(void);   // TODO: Use different function prototype
-    //mclass_t *mtree;
-    match_rule_t ***tree;
-} match_tree_t;
-
-
-/* (kinda cool)
-
-# Arity Series (latin)
-
-    0 - Nullary
-    1 - Unary
-    2 - Binary
-    3 - Ternary
-    4 - Quaternary
-
-
-# Adicity Series (greek)
-
-    0 - Niladic
-    1 - Monadic
-    2 - Dyadic
-    3 - Triadic
-    4 - Tetradic
-
-*/
 
 
 
@@ -217,6 +243,7 @@ extern char *match_rule_str[MATCH_RULE_LEN];
 extern char *match_type_str[TYPE_Z+1];
 
 
+extern match_tree_t c_mtree;
 
 
 
