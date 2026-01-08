@@ -13,9 +13,6 @@
 #ifdef __DEBUG__
 
 
-typedef void *(*input_handler_t)(void *, uint32_t);
-typedef void *(*output_handler_t)(void *, uint32_t);
-
 
 
 
@@ -28,357 +25,326 @@ typedef void *(*output_handler_t)(void *, uint32_t);
 
 
 
-
-typedef struct {
-    
-} test_state_t;
-
-
-enum {
-    OUTPUT_NULL = 0,
-    OUTPUT_TOKEN,
-    OUTPUT_GROUP,
-}
-typedef int_t output_type_t;
-
-
-
-//#define OUTPUT_MAX_ARGS 10
-
-
-struct output;
-typedef struct output output_t;
-
-struct output {
-
-    output_type_t type;
-
-    uint32_t match_flags;
-    
-    union {
-        token_t *token;
-        
-        struct {
-            int_t gcount;
-            output_t **group;
-        };
-    };
-    
-};
-
-
-void test_free_outputs(output_t *out) {
-    switch (out->type) {
-        // if null then do nothing
-        case OUTPUT_NULL:
-            return;
-    
-        // zero out and only free self
-        case OUTPUT_TOKEN:
-            *out = {0};
-            free(out);
-            return;
-
-        // recursively free all subobjects
-        // then free subobject pointer list
-        // then zero out and free self
-        case OUTPUT_GROUP:
-            for (int i = 0; i < out->gcount; i++)
-                if (out->group[i] != NULL)
-                    test_free_outputs(out->group[i]);
-            free(out->group);
-            *out = {0};
-            free(out);
-            return;
-
-        // if not recognized, then segfault
-        default:
-            segfault();
-            return;
-    }
-}
-
-
-// assume tokens are always accessable, and are apart of a larger
-// separate list of tokens
-output_t *test_alloc_outtoken(uint32_t flags, token_t *token) {
-    output_t *out = malloc(sizeof(output_t));
-
-    *out = {
-        .type = OUTPUT_TOKEN,
-        .match_flags = flags,
-        .token = token,
-    };
-
-    return out;
-}
-
-// assume outputs are already allocated, and are simply passed to this group to
-// later free by itself.
-output_t *test_alloc_outgroup(uint32_t flags, output_t **outputs, int_t out_count) {
-    output_t *out = malloc(sizeof(output_t));
-
-    *out = {
-        .type = OUTPUT_GROUP,
-        .match_flags = flags,
-        .gcount = out_count,
-        .group = malloc(out_count * sizeof(void*)),
-    };
-
-    for (int i = 0; i < out_count; i++)
-        out->group[i] = outputs[i];
-
-    return out;
-}
-
-
-
-// return output if match
-// return NULL if no match
-// only used for singular token matching
-// needs to step to next token (not stepping if no match is optional)
-// set *t to null if an error has occured or EOF reached
-output_t *test_input_handler(uint32_t matchid, token_t **t) {
-    uint32_t flags = mid;
-    uint32_t mid = matchid & MF_MATCH_MASK;
-
-    token_t *token = *t;
-
-    output_t *out = NULL;
-
-    bool is_match = false;
-
-    // if EOF, then set **t to NULL
-
-    // if utoken
-    if (flags & MF_UTOKEN)
-        if ((mid == token->tid) && (token->type == TOKEN_UTOKEN))
-            is_match = true;
-
-    // if dtoken
-    else if (flags & MF_DTOKEN)
-        if ((mid  == token->tid) && (token->type == TOKEN_DTOKEN))
-            is_match = true;
-
-    // if token_type
-    else if (flags & MF_TOKEN_TYPE
-        if (mid == token->type)
-            is_match = true;
-
-    if (is_match) {
-        out = test_alloc_outtoken(matchid, token);
-        *t += 1;
-    }
-
-
-    return out;
-}
-
-
-
-// will condense an ouput if only one in group.
-// manages allocations throughout this
-// non recursive. only a depth of one.
-// output_t *deglove_output(output_t *out) {
-//     if (out->gcount != 1)
-//         return out;
-// }
-
-
-
-// returns grouped object
-// caller handles the allocations for inputs lists, but not the inputs
-// themselves, except for those passed back out as an output
-// passes in the flags set by the group or'ed with flags set by the group reference
-output_t *test_output_handler(uint32_t flags, output_t **inputs, int_t in_count) {
-
-    // deglove redundant groups, favoring the deepest group
-    // unless it is a token
-    if ((in_count == 1) && (inputs[0].type != OUTPUT_TOKEN))
-        return inputs[0];
-
-    // create new group
-    output_t *out = test_alloc_outgroup(flags, inputs, in_count);
-
-    return out;
-}
-
-
-
-void _print_output_tree_rec(output_t *output, int_t depth) {
-
-    // add indentation based on depth
-    for (int i = 0; i < depth; i++)
-        printf("  ");
-
-    switch (output->type) {
-        case OUTPUT_NULL:
-            printf("NULL\n");
-            return;
-    
-        case OUTPUT_TOKEN:
-            printf("TOKEN ");
-            print_token(token_t *token);
-            printf("\n");
-            return;
-
-        case OUTPUT_GROUP:
-            match_rule_str[MATCH_RULE_LEN]
-            // skip the "MATCH_" part of the string
-            printf("GROUP [%s]\n", get_output_type_str(output)+6);
-            for (int i = 0; i < output->gcount; i++)
-                _print_output_tree_rec(output->group[i], depth+1);
-            return;
-
-        default:
-            printf("INVALID_OUTPUT\n");
-            return;
-    }
-}
-
-
-
-void print_output_tree(output_t *output) {
-    _print_output_tree_rec(output, 0);
-}
-
-
-
-static match_t test_match = {
-    .input_handler = test_input_handler,
-    .output_handler = test_output_handler,
-    .free_handler = test_free_outputs,
-    .tree = c_mtree,
-    .tree_len = sizeof(c_mtree),
-};
-
-
-// int test_match_tree_init(void) {
-// 
-//     assert((sizeof(c_mtree) == MATCH_RULE_LEN), -1);
-//     
-//     test_match->input_handler = test_input_handler;
-//     test_match->output_handler = test_output_handler;
-//     test_match->tree = c_mtree;
-//     test_match->tree_len = sizeof(c_mtree);
-// 
-//     return 0;
-// }
-
-
-int test_match_tree(token_t *tokens, int_t token_count) {
-    assert((sizeof(c_mtree) == MATCH_RULE_LEN), -1);
-
-    output_t *out = match(test_match, MATCH_TRANSLATION_UNIT, tokens, token_count, token_size);
-
-    print_output_tree(out);
-
-    match_free(out);
-}
-
-
-
 #endif /* #ifdef __DEBUG__ */
 
 
 
-// return value needs to be freed by match_free(...)
-// return is determined by output_handler
-// NOTE: INPUT MUST HAVE SOME SORT OF NULL TERMINATOR OR INDICATOR THAT intput_handler
-//       CAN USE!
-void *_match(match_t *m, match_rule_t rule, void **input) {
-    uint32_t rflags, **rtable;
-    int largest_off = 0;
-    void *out = NULL;
-    void *input_origin = *input;
-
-    DEBUG( assert((rule < m->tree_len), NULL); );
-
-    rtable = m->tree[rule];
-    // first entry reserved for rule flags
-    rflags = (uint32_t)rtable[0];
-
-    // get number of rules in a target
-    // for (out_len = 0; rtable[out_len+1] != NULL; out_len++);
-    // 
-    // void *out_list[out_len];
-    // int byte_list[out_len];
 
 
-    // loop through rules until null terminator found
-    for (int irule = 1; rtable[irule] != NULL; irule++) {
-        void **in_list = NULL;
-        int in_len = 0;
-        void *out;
-        int off;
 
-        // loop through subrules until null terminator found or first no-match hit
-        for (int isub = 1; rtable[irule][isub] != NULL; isub++) {
-            uint32_t mid;
-            void *saved_input;
-            void *in;
 
-            mid = rtable[irule][isub];
-            saved_input = *input;
 
-            if (mid & MF_UNRES_MASK)
-                // if unreserved flags detected, then pass to the input handler
-                in = m->input_handler(input, mid);
-                
-            else
-                // otherwise, recursively call match on the subrule 'mid'
-                // also LOR with flags from first rule entry
-                // also readjust input length
-                in = _match(m, mid | rflags, input, input_len - (int)(input_origin - ));
+// TODO rename to new_token
+ptoken_t *ptoken_new_user(int tindex, void *token) {
+    ptoken_t *token = malloc(sizeof(ptoken));
+    if (token != NULL)
+        *token = (ptoken_t){
+            .type = PFLAG_USER,
+            .user.tindex = tindex,
+            .user.token = token,
+        };
+    return token;
+}
 
-            // if *input was set to NULL, then an error has occured and we must return
-            if 
 
-            if (in != NULL) {
 
-                // if match, allocate or reallocate space on list for next entry
-                in_list = realloc(in_list, ++in_len * sizeof(void*));
-                if (in_list == NULL) fatal(-1);
-                in_list[in_len-1] = in;
-                
-            } else {
-                // if no match, then revert back to previous input offset,
-                // deallocate input list and all inputs, set to NULL, and break
-                *input = saved_input;
-                for (int i = 0; i < in_len; i++)
-                    match_free(m, in_list[i]);
-                free(in_list);
-                in_list = NULL;
-                break;
+// assume the children are detached, and we can directly inherit the list
+ptoken_t *ptoken_new_match(int tid, int rid, int count, ptoken_t **children) {
+    ptoken_t *token = malloc(sizeof(ptoken));
+
+    if (token != NULL) {
+        *token = (ptoken_t){
+            .type = PFLAG_MATCH,
+            //.match.mid = mid,
+            .match.targetid = tid,
+            .match.ruleid = rid,
+            .match.count = count,
+            //.match.children = malloc(count * sizeof(void*));
+            .match.children = children,
+        };
+    }
+    
+    // for (int i = 0; i < count; i++)
+    //     token->match.children[i] = children[i];
+    
+    return token;
+}
+
+
+
+void ptoken_free(ptoken_t *token) {
+    switch (token->flags) {
+        case PFLAG_MATCH:
+            for (int i = 0; i < token->match.count; i++) {
+                ptoken_free(token->match.children[i]);
+                DEBUG(token->match.children[i] = NULL;);
             }
-        }
+            free(token->match.children);
+            DEBUG(token->match.children = NULL;);
+        case PFLAG_USER:
+            free(token);
+            break;
+        default:
+            segfault();
+    }
+}
 
-        // if in_list is NULL, then skip this rule
-        if (in_list == NULL)
-            continue;
-        
-        // get offset from original input position
-        off = *input - input_origin;
 
-        // select the rule that consumes the most tokens
-        // if new offset is larger than the previous largest offset, then set it to be
-        // the new output
-        if (off > largest_off) {
-            largest_off = off;
 
-            // free old out
-            match_free(out);
 
-            // output_t *test_output_handler(uint32_t flags, output_t **inputs, int_t in_count)
-            // set new largest out
-            out = m->output_handler();
-        }
+// recursive
+void _print_ptoken(ptoken_t *token, ptoken_name_handler_t print_handler, int depth) {
+    for (int i = 0; i < depth; i++)
+        (i % 2) ? printf("|") : printf(" ");
+
+    switch (token->type) {
+        case PFLAG_USER:
+            printf("TOKEN ");
+            print_handler(token);
+            printf("\n");
+            break;
+            
+        case PFLAG_MATCH:
+            printf("MATCH ");
+            print_handler(token);
+            printf("\n");
+            for (int i = 0; i < token->match.count; i++)
+                _print_ptoken(token->match.children[i], handler, depth+1);
+            break;
+
+        default:
+            printf("INVALID []\n");
+    }
+}
+
+
+void print_ptoken(ptoken_t *token, ptoken_name_handler_t handler) {
+     _print_ptoken(token, handler, 0);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+// the golden ratio
+#define GOLDEN_ALLOC_MULT 1.61803
+
+
+int pstack_init(pstack_t *stack) {
+    *stack = {
+        .index = 0,
+        .alloc = 16,
+        .data = malloc(16 * sizeof(void*)),
+    };
+
+    if (stack->data == NULL)
+        return -1;
+    return 0;
+}
+
+
+void pstack_free(pstack_t *stack) {
+    for (; stack->index > 0; stack->index--) {
+        ptoken_free(stack->data[index-1]);
+        DEBUG(stack->data[index-1] = NULL;);
+    }
+    free(stack->data);
+    DEBUG(
+        *stack = {0};
+    );
+}
+
+
+void pstack_push(pstack_t *stack, ptoken_t *token) {
+    if (stack->index >= stack->alloc) {
+        stack->alloc *= GOLDEN_ALLOC_MULT;
+        stack->data = realloc(stack->data, stack->alloc * sizeof(void*))
     }
 
-    return out;
+    stack->data[stack->index++] = token;
 }
 
 
-void *match(match_t *m, match_rule_t rule, void *input, int in_len) {
-    return _match(m, rule, &input, in_len);
+// returns a malloc'ed list of pointers to ptoken_t's that will need to be freed.
+// usually this will be inserted into a ptoken, where the ptoken will free 
+// it for us when we free the token.
+ptoken_t **pstack_pop(pstack_t *stack, int count) {
+    ptoken_t **group;
+
+    if (count > stack->index)
+        return NULL;
+
+    group = malloc(count * sizeof(void*));
+
+    for (;count > 0; count--)
+        group[i] = stack->data[--stack->index];
+
+    return group;
 }
+
+
+// moves pstack data into a ptoken
+ptoken_t *pstack_to_ptoken(pstack_t *stack) {
+    ptoken_t ret;
+
+    if (stack->length == 0)
+        ret = NULL;
+    if (stack->length == 1)
+        ret = stack->data[0];
+    else
+        ret = ptoken_new_match(0, 0, 0, stack->length, stack->data);
+        
+    //free(stack->data);
+    // this needs to be here in case someone calls free on this pstack
+    // so we don't have the new ptoken children freed as well
+    stack->data = NULL;
+    
+    return ret;
+}
+
+
+
+
+
+
+/*
+We check the newest token in the stack with the last match member of all of the rules. If it matches, then we match the second to last match member with the second to last in the stack, and so on. If it is a full match, then we pop those tokens from the stack, and replace it with a single new match token. If there are no matches, then we simply keep adding tokens until there is.
+But now, what about handling match conflicts? Is there a way to have the desciptor set in a way that it can be first match?
+Lets just assume so for now until we actually run into problems. Because generally I think that the descriptor set is built with this in mind, or at least can be built with this in mind. And that conflicts should generally be rare based on what I have seen from my own C descriptor table.
+
+
+Alright, how should input be handled for this? 
+I was thinking perhaps we pass to the input the mid, and it will return either
+a -1, as in no match, or it will return an index into a list it controls.
+Though, I suppose I don't even need that. I can insert user tokens into the stack
+without the need for user input. So I just need a match handler
+
+*/
+
+
+// this is a bottom-up parser
+ptoken_t *match(match_t *m, int rule, void *input) {
+    pstack_t stack;
+    match_tree_t tree = m->tree;
+    //bool is_eof = false;
+
+    // create the stack
+    pstack_init(&stack);
+
+    // loop until eof is found. The do/while loop should
+    // then condense the entire stack to a single translation unit token
+    // before reaching the conditional of this for loop again, unless
+    // there is a syntax error. In any case, we want to abort here.
+    for (int index = 0;; index++) {
+        //void *in;
+        ptoken_t *token;
+        bool matchflag = false;
+
+        // abort if next token is eof
+        if (m->eof_handler(index) == true)
+            break;
+        
+        // push token onto stack
+        //tindex = m->input_handler(input, index, mid);
+        token = ptoken_new_user(index, m->tget_handler(input, index));
+        pstack_push(&stack, token);
+
+        // loop until no matches found
+        do {
+            //match_target_t *target;
+            //int ti;
+            
+            // check every match rule. If no match, then push token onto the stack
+            // loop through every match target
+            //for (target = m->tree; *target != NULL; target++) {
+            for (int ti = 0; tree[ti] != NULL; ti++) {
+                //match_rule_t *rule;
+                
+                // if unimplemented, then continue to next target
+                if (tree[ti][0][0] & MF_NOT_IMPLEMENTED)
+                    continue;
+                
+                // loop through every match rule
+                //for (rule = *target; *rule != NULL; rule++) {
+                for (int ri = 0; tree[ti][ri] != NULL; ri++) {
+                    int end, i, j;
+                    bool ismatch;
+                    
+                    // get length of subrule
+                    // TODO: optimize this so we dont have to count each time
+                    for (end = 0; tree[ti][ri][i] != NULL; end++);
+
+                    // if length of subrule exceeds stack index, then continue to
+                    //     next rule
+                    if (end > stack->index)
+                        continue;
+                    
+                    // loop through every match subrule until mismatch found
+                    //     starting from the end
+                    // if subrule is optional and mismatch, then don't fail and
+                    //     instead only increment the subrule i and not the stack j
+                    for (i = 1, j = 1; end - i >= 0; i++) {
+                        uint32_t mid;
+                        ptoken_t *stoken;
+
+                        mid = tree[ti][ri][end-i];
+                        stoken = stack->data[stack->index - j];
+                        
+                        if (rmid & MF_UNRES_MASK) {
+                            ismatch = m->tmatch_handler(stoken->user.token, mid);
+
+                        } else {
+                            // match if stoken mid is equal to the rule mid
+                            ismatch = (stoken->match.targetid == (mid & MF_MATCH_MASK));
+                        }
+
+                        // if  optional and  ismatch, then increment both and no abort
+                        // if !optional and  ismatch, then increment both and no abort
+                        // if  optional and !ismatch, then increment i    and no abort
+                        // if !optional and !ismatch, then abort
+
+                        if (ismatch)
+                            j++;
+                        else if (!(mid & MF_OPTIONAL))
+                            break;
+                    }
+
+                    // if the subrule loop breaks with ismatch = true, then reduce stack
+                    // and break out of target loop
+                    if (ismatch) {
+                        ptoken_t **group;
+                        ptoken_t *newtoken;
+                    
+                        // pop stack into group equal to the length of the rule (end)
+                        group = pstack_pop(&stack, end);
+                        
+                        // create token from group
+                        newtoken = ptoken_new_match(ti, ri, end, group);
+                        
+                        // push new group token into stack
+                        pstack_push(&stack, newtoken);
+                        
+                        goto _exit_target_loop;
+                    }
+                }
+            }
+            _exit_target_loop:
+            
+        } while (matchflag == true);
+    }
+
+    return pstack_to_ptoken(&stack);
+}
+
+
+
+
+

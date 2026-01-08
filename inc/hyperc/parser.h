@@ -75,18 +75,84 @@ typedef DECAY(static_tree_t) match_tree_t;
 // } mclass_t;
 
 
+// TODO: try to merge tget_handler and eof_handler
+typedef void *(*tget_handler_t)(void *input, int index);
+typedef bool (*tmatch_handler_t)(void *token, uint32_t mid);
+typedef bool (*eof_handler_t)(void *input, int index);
+typedef char *(*ptoken_name_handler_t)(ptoken_t *ptoken, char *buff, int max);
+
+
+
 typedef struct {
-    void (*input_handler)(void);    // TODO: Use different function prototype
-    void (*output_handler)(void);   // TODO: Use different function prototype
-    void (*free_handler)(void);   // TODO: Use different function prototype
+    //void (*input_handler)(void);    // TODO: Use different function prototype
+    //void (*free_handler)(void);     // TODO: Use different function prototype
+    //void (*output_handler)(void);   // TODO: Use different function prototype
+    tget_handler_t tget_handler;
+    tmatch_handler_t tmatch_handler;
+    eof_handler_t eof_handler;
     //void *state;
     
     match_tree_t tree;
     
-    int tree_len;
+    //int tree_len;
     //int state_len;
     //int token_size; // in bytes. if 1, then it is basically a string input
 } match_t;
+
+
+
+
+
+
+
+enum {
+    PFLAG_USER = 1,
+    PFLAG_MATCH,
+};
+
+
+typedef struct ptoken_t;
+typedef struct {
+    uint32_t type;
+    union {
+        struct {
+            int tindex; // index into input token list
+            void *token;
+        } user;
+        struct {
+            //uint32_t mid;
+            int targetid;
+            int ruleid;
+            int count;
+            ptoken_t **children;
+        } match;
+    };
+} ptoken_t;
+
+
+
+
+
+
+
+
+typedef struct {
+    union {
+        int index; // points to end of stack, not last item of stack
+        int length;
+    }
+    int alloc;
+    ptoken_t **data;
+} pstack_t;
+
+
+
+
+
+
+void ptoken_free(ptoken_t *token);
+void print_ptoken(ptoken_t *token, ptoken_name_handler_t handler);
+ptoken_t *match(match_t *m, int rule, void *input);
 
 
 
@@ -96,12 +162,12 @@ typedef struct {
 
 
 
-#ifdef __DEBUG__
-
-//int test_match_tree_init(void);
-int test_match_tree(token_t *tokens, int_t token_count);
-
-#endif /* #ifdef __DEBUG__ */
+// #ifdef __DEBUG__
+// 
+// //int test_match_tree_init(void);
+// int test_match_tree(token_t *tokens, int_t token_count);
+// 
+// #endif /* #ifdef __DEBUG__ */
 
 
 

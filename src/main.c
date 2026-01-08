@@ -3,16 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "utils/macros.h"
+//#include "utils/macros.h"
 #include "hyperc.h"
 
 
-
-#define GFLAG_NOOP (1<<0)
-#define GFLAG_TEST (1<<1)
-
-
-typedef uint64_t global_flags_t;
 
 
 
@@ -28,20 +22,6 @@ char helpstr[] =
 
 
 
-enum {
-    //AFLAG_H = 0,
-
-    BFLAG_TEST = 0,
-
-    FLAGID_INVALID = -1,
-
-    FLAGID_TYPE_MASK = 0xFFFF0000,
-    FLAGID_TYPE_A = 0x00010000,
-    FLAGID_TYPE_B = 0x00020000,
-};
-typedef uint32_t flagid_t;
-
-
 
 // char flags_a[] = {
 //     [AFLAG_H] = "h",
@@ -53,15 +33,13 @@ char *flags_b[] = {
 
 
 
-struct {
-    char* outfile;
-    char* infile;
-    global_flags_t flags;
-} global = {0};
+
+
+global_t global = {0};
 
 
 
-int test(void);
+//int test(void);
 int parse_args(int argc, char *argv[]);
 int parse_flag(flagid_t flagid);
 void print_help(void);
@@ -78,7 +56,7 @@ int main(int argc, char *argv[]) {
 
     if (global.flags & GFLAG_TEST)
 #       ifdef __DEBUG__
-        test();
+        run_tests();
 #       else
         printf("--test is not avaliable in the release version\n");
 #       endif
@@ -189,51 +167,5 @@ void print_help(void) {
 
 
 
-// TODO: move this to it's own source file
-size_t get_file_size(FILE *file) {
-    if (file == NULL) return -1;
-    if (fseek(file, 0, SEEK_END) != 0) return -1;
-    size_t len = ftell(file);
-    rewind(file);
-    return len;
-}
 
 
-
-
-#ifdef __DEBUG__
-
-int test(void) {
-    FILE *infile;
-    size_t insize;
-    int err;
-
-    printf("running tests\n");
-
-    infile = fopen(global.infile, "r");
-    insize = get_file_size(infile);
-
-    char filestr[insize];
-
-    char *ok = (char*)1;
-    for (int index = 0; ok;) {
-        ok = fgets(&filestr[index], insize, infile);
-        if (ok)
-            index += strlen(ok);
-    }
-    
-    fclose(infile);
-
-
-    token_array_t tarray;
-    token_array_init(&tarray);
-    
-    err = tokenize_buffer(&tarray, filestr);
-
-    if (!err)
-        print_token_array(&tarray);
-
-    return 0;
-}
-
-#endif

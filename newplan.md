@@ -200,3 +200,124 @@ Honestly, that does not look bad. It gets the point across about the operators.
 The C alternative:
 
 (*x[3])({0})()
+
+
+
+
+
+
+
+
+
+
+
+
+Alright, we need to choose a parsing algorithm.
+I do like top down. It feels the cleanest one to me. However, it is also kind of intensive without cache optimizations. Plus, there is the iteration issue. There is also the question of conflict resolution. Despite gpt's insistings, I am going to assume that picking the biggest is the best.
+But now what about the recursive issue?
+Mayhaps a simple self recursion optimization. Any other recursion should be avoided, if possible.
+But with self recursion, there is clearly a way to determine when the recursion should end, which is basically when all other submatches do not match. If none of those match, then we have gone one step too far down the recursion hole.
+
+I will be honest though, I would prefer some sort of check be done in the ruleset explicitly, rather than implicitly through the algorithm.
+Also the idea of choosing the biggest requires that we iterate through every possible combination of the rules, which does get very bad very fast. So I wonder if I can create a version of the rules that is first match first serve. Caching will still probably be needed here though.
+
+What error should be used should matching the translation unit fail?
+Perhaps the one that got the closest match, which can perhaps be determined by the match that contained the most tokens that matched.
+
+
+Alright, but what is the alternative here? 
+Bottom up? I suppose it is also a rather elegant solution in it's simplest form. It could be a rather simple algorithm, that is reasonably fast, and we may even be able to go with first-match-first-serve. I mean, I don't see why not.
+
+Actually, I guess I do see why not. Because first-match-first-serve will not work, even in a well constructed case, because there will likely be multiple different match paths for the same symbol. An identifier leading the tokens can be many different things, and so we would effectively need to check multiple matches before deciding which one. And as a result, we would sometimes need to backtrack.
+
+https://en.wikipedia.org/wiki/LR_parser
+
+Though a way to reduce this is by using a lookahead, which is looking ahead at the next symbol before deciding what kind of match is done with the previous symbols.
+
+It seems like a bottom up would be better at errors too, as a note.
+But this lookahead business still seems rather crude to me.
+
+
+Lets look at the alternative here
+https://en.wikipedia.org/wiki/LL_parser
+
+So a top down can use a lookahead too. I am not entierly sure what this solves though. But it might solve the recursion issue.
+
+Also, based off this wiki article, my algorithm doesn't really seem to conform to the algorithm of an LL parser. I think mine is a more general or different type of top-down parser. I am assuing this one though avoids recursion.
+
+
+
+
+
+I feel like the final stage of my parser should be something that reads binary input, and all token matches are binary with a flag that states it is a binary match rather than a recursive match. Though an output stage is required in case I want to output linearly like for a tokenizer, so we might as well have an input stage as well. 
+How should the output stage work though? I think we just go with our current output method, of returning a pointer to the output that gets inputted to the next input call. But I am thinking of doing this only at the very end of parsing to a tree, so that it isn't called redundantly.
+But this does beg the question, should it be a single output call, or should it be done for each member of the tree, where the parser handles the recursive output calls?
+I suppose it could just be a single call that returns the tree, for someone else to handle. And then to avoid needing to free it myself, the parser will free the tree once the output function returns.
+
+
+
+Fixing recursion
+```
+    a:
+        a b
+        c
+
+    cbbbbb
+    (cbbbb)b
+    ((cbbb)b)b
+    (((cbb)b)b)b
+    ((((cb)b)b)b)b
+    (((((c)b)b)b)b)b
+
+    We need the recursion to stop when there is no more tailing b
+
+    If there is no heading c, then no match
+    If there is a heading c, then check for c b. If b is a match, 
+    then check for a b
+
+    a:
+        if c b then
+            a b
+        c
+
+    a:
+        c a b   1
+        a b     2
+        b       3
+
+    cbbbbb
+    1 (c)(bbbbb
+    2 (c)((((((((bbbbb
+
+    a:
+        c b a
+
+
+    a:
+        if c: a b
+        c
+
+    
+```
+
+The problem with this is that it is trying to effectively match backwards using a forward parser.
+You basically need to be able to look ahead to determine where it ends, as ultimately you need to figure out how deep you need to go. Which I guess is where bottom-up thrives.
+
+I wonder if I can create a recursive bottom up algorithm that aligns with the stack
+
+Lets say each token we consume we call ourselves with that token. But for each token we check we compare it to a truth table of all the match rules, as well as the match rule itself. The match rule truth table marks if all the previous tokens match with any of the rules. The token position and the position of each member of a rule are equivalent.
+
+Ohh, yeah, doing this recursively wont work, as regressing backwards has no correlation with if the stack is increasing or regressing.
+
+Alright then, in that case, 
+We check the newest token in the stack with the last match member of all of the rules. If it matches, then we match the second to last match member with the second to last in the stack, and so on. If it is a full match, then we pop those tokens from the stack, and replace it with a single new match token. If there are no matches, then we simply keep adding tokens until there is.
+But now, what about handling match conflicts? Is there a way to have the desciptor set in a way that it can be first match?
+Lets just assume so for now until we actually run into problems. Because generally I think that the descriptor set is built with this in mind, or at least can be built with this in mind. And that conflicts should generally be rare based on what I have seen from my own C descriptor table.
+
+In case I actually do need to add conflict resolution through, if there is no matches, and we have reached the EOF, then we simply start popping stuff off our stack until we reach our last match token, and we then dissolve our match token into it's components, and then we continue trying to match it from the list, but instead starting at the index that it was originally matched with.
+We dont even need to go all the way to EOF, we can just stop once the number of tokens in our stack exceed the number of tokens in any of our rules. We can also use that to speed up matches by checking the number of tokens in the stack with the max number of tokens for any rule.
+However, I suppose that is not ideal, as we aren't using the entire stack for a rule. And due to reverse operator associativity, it is very well possible for the entire file to be scanned before our first match is found.
+
+In that case though, what would happen if we were to build from it backwards starting at the end of the document? I suppose it would not be that effective, as the tokens we condense to will generally be preceeding, and we will eventually just end up with the same algorithm except backwards.
+
+So yeah, for now lets just ignore the match conflicts.

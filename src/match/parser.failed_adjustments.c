@@ -1,4 +1,15 @@
 
+
+/*
+ * == Note ==
+ * These rules have been adjusted to fix left hand recursion
+ * and are first-match-first-goes. Which just means that 
+ * the instant a subrule matches, it doesn't bother checking
+ * the others.
+ */
+
+
+
 /* ########################
  * ##  !! IMPORTANT !!   ##
  * ########################
@@ -97,20 +108,20 @@
 
 
 
-static_tree_t c_mtree = (static_tree_t){
+static_tree_t c_mtree = (static_target_t){
 
-    [MATCH_IDENTIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ TOKEN_IDENTIFIER | MF_TOKEN_TYPE, NULL },    // identifier
+    [MATCH_IDENTIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ TOKEN_IDENTIFIER | MF_TOKEN_TYPE, NULL },    // identifier
         NULL,
     },
     
-    [MATCH_CONSTANT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ TOKEN_NUMERIC | MF_TOKEN_TYPE, NULL },       // constant
+    [MATCH_CONSTANT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ TOKEN_NUMERIC | MF_TOKEN_TYPE, NULL },       // constant
         NULL,
     },
     
-    [MATCH_STRING_LITERAL] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ TOKEN_STRING | MF_TOKEN_TYPE, NULL },        // string-literal
+    [MATCH_STRING_LITERAL] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ TOKEN_STRING | MF_TOKEN_TYPE, NULL },        // string-literal
         NULL,
     },
 
@@ -120,11 +131,11 @@ static_tree_t c_mtree = (static_tree_t){
     //####################################################
 
     // primary-expression
-    [MATCH_PRIMARY_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_IDENTIFIER, NULL },        // identifier
-        [TYPE_B] = (static_rule_t){ MATCH_CONSTANT, NULL },          // constant
-        [TYPE_C] = (static_rule_t){ MATCH_STRING_LITERAL, NULL },    // string-literal
-        [TYPE_D] = (static_rule_t){
+    [MATCH_PRIMARY_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_IDENTIFIER, NULL },        // identifier
+        [TYPE_B] = (static_subrule_t){ MATCH_CONSTANT, NULL },          // constant
+        [TYPE_C] = (static_subrule_t){ MATCH_STRING_LITERAL, NULL },    // string-literal
+        [TYPE_D] = (static_subrule_t){
             UTOKEN_L_RBRACKET | MF_UTOKEN,                              // ( expression )
             MATCH_IDENTIFIER,
             UTOKEN_R_RBRACKET | MF_UTOKEN,
@@ -133,64 +144,147 @@ static_tree_t c_mtree = (static_tree_t){
         NULL,
     },
 
+    // // CUSTOM postfix-expression-alt
+    // [MATCH_POSTFIX_EXPRESSION_ALT] = (static_rule_t){
+    //     [TYPE_A] = (static_subrule_t){ MATCH_PRIMARY_EXPRESSION, NULL },    // primary-expression
+    //     [TYPE_B] = (static_subrule_t){ MATCH_COMPOUND_LITERAL, NULL },      // compound-literal
+    // },
+
+    // // postfix-expression
+    // [MATCH_POSTFIX_EXPRESSION] = (static_rule_t){
+    //     [TYPE_A] = (static_subrule_t){       // primary-expression
+    //         MATCH_PRIMARY_EXPRESSION,
+    //         NULL,
+    //     },
+    //     [TYPE_B] = (static_subrule_t){       // postfix-expression [ expression ]
+    //         MATCH_POSTFIX_EXPRESSION,
+    //         UTOKEN_L_SBRACKET | MF_UTOKEN,
+    //         MATCH_EXPRESSION,
+    //         UTOKEN_R_SBRACKET | MF_UTOKEN,
+    //         NULL,
+    //     },
+    //     [TYPE_C] = (static_subrule_t){       // postfix-expression ( argument-expression-listopt )
+    //         MATCH_POSTFIX_EXPRESSION,
+    //         UTOKEN_L_RBRACKET | MF_UTOKEN,
+    //         MATCH_ARGUMENT_EXRESSION_LIST | MF_OPTIONAL,
+    //         UTOKEN_R_RBRACKET | MF_UTOKEN,
+    //         NULL,
+    //     },
+    //     [TYPE_D] = (static_subrule_t){       // postfix-expression . identifier
+    //         MATCH_POSTFIX_EXPRESSION,
+    //         UTOKEN_PERIOD | MF_UTOKEN,
+    //         MATCH_IDENTIFIER,
+    //         NULL,
+    //     },
+    //     [TYPE_E] = (static_subrule_t){       // postfix-expression -> identifier
+    //         MATCH_POSTFIX_EXPRESSION,
+    //         UTOKEN_R_ARROW | MF_UTOKEN,
+    //         MATCH_IDENTIFIER,
+    //         NULL,
+    //     },
+    //     [TYPE_F] = (static_subrule_t){       // postfix-expression ++
+    //         MATCH_POSTFIX_EXPRESSION,
+    //         UTOKEN_INCREMENT | MF_UTOKEN,
+    //         NULL,
+    //     },
+    //     [TYPE_G] = (static_subrule_t){       // postfix-expression --
+    //         MATCH_POSTFIX_EXPRESSION,
+    //         UTOKEN_DECREMENT | MF_UTOKEN,
+    //         NULL,
+    //     },
+    //     [TYPE_H] = (static_subrule_t){       // compound-literal
+    //         MATCH_COMPOUND_LITERAL,
+    //         NULL,
+    //     },
+    //     NULL,
+    // },
+
+    // CUSTOM postfix-operator
+    [MATCH_POSTFIX_OPERATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // [ expression ]
+            UTOKEN_L_SBRACKET | MF_UTOKEN,
+            MATCH_EXPRESSION,
+            UTOKEN_R_SBRACKET | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_B] = (static_subrule_t){       // ( argument-expression-listopt )
+            UTOKEN_L_RBRACKET | MF_UTOKEN,
+            MATCH_ARGUMENT_EXRESSION_LIST | MF_OPTIONAL,
+            UTOKEN_R_RBRACKET | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_C] = (static_subrule_t){       // . identifier
+            UTOKEN_PERIOD | MF_UTOKEN,
+            MATCH_IDENTIFIER,
+            NULL,
+        },
+        [TYPE_D] = (static_subrule_t){       // -> identifier
+            UTOKEN_R_ARROW | MF_UTOKEN,
+            MATCH_IDENTIFIER,
+            NULL,
+        },
+        [TYPE_E] = (static_subrule_t){       // ++
+            UTOKEN_INCREMENT | MF_UTOKEN,
+            NULL,
+        },
+        [TYPE_F] = (static_subrule_t){       // --
+            UTOKEN_DECREMENT | MF_UTOKEN,
+            NULL,
+        },
+        NULL,
+    },
+
     // postfix-expression
-    [MATCH_POSTFIX_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // primary-expression
+    // fixed for recursion and first match
+    [MATCH_POSTFIX_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // primary-expression
             MATCH_PRIMARY_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // postfix-expression [ expression ]
+        [TYPE_B] = (static_subrule_t){       // postfix-expression postfix-operator
             MATCH_POSTFIX_EXPRESSION,
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             MATCH_EXPRESSION,
             UTOKEN_R_SBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // postfix-expression ( argument-expression-listopt )
-            MATCH_POSTFIX_EXPRESSION,
-            UTOKEN_L_RBRACKET | MF_UTOKEN,
-            MATCH_ARGUMENT_EXRESSION_LIST | MF_OPTIONAL,
-            UTOKEN_R_RBRACKET | MF_UTOKEN,
-            NULL,
-        },
-        [TYPE_D] = (static_rule_t){       // postfix-expression . identifier
-            MATCH_POSTFIX_EXPRESSION,
-            UTOKEN_PERIOD | MF_UTOKEN,
-            MATCH_IDENTIFIER,
-            NULL,
-        },
-        [TYPE_E] = (static_rule_t){       // postfix-expression -> identifier
-            MATCH_POSTFIX_EXPRESSION,
-            UTOKEN_R_ARROW | MF_UTOKEN,
-            MATCH_IDENTIFIER,
-            NULL,
-        },
-        [TYPE_F] = (static_rule_t){       // postfix-expression ++
-            MATCH_POSTFIX_EXPRESSION,
-            UTOKEN_INCREMENT | MF_UTOKEN,
-            NULL,
-        },
-        [TYPE_G] = (static_rule_t){       // postfix-expression --
-            MATCH_POSTFIX_EXPRESSION,
-            UTOKEN_DECREMENT | MF_UTOKEN,
-            NULL,
-        },
-        [TYPE_H] = (static_rule_t){       // compound-literal
+        [TYPE_H] = (static_subrule_t){       // compound-literal
             MATCH_COMPOUND_LITERAL,
             NULL,
         },
         NULL,
     },
 
+    // postfix-expression:
+    //     postfix-expression postfix-operator
+    //     primary-expression
+    //     compound-literal
+
+    // // argument-expression-list
+    // [MATCH_ARGUMENT_EXPRESSION_LIST] = (static_rule_t){
+    //     [TYPE_A] = (static_subrule_t){       // assignment-expression
+    //         MATCH_ASSIGNMENT_EXPRESSION,
+    //         NULL,
+    //     },
+    //     [TYPE_B] = (static_subrule_t){       // argument-expression-list , assignment-expression
+    //         MATCH_EXRESSION_LIST,
+    //         UTOKEN_COMMA | MF_UTOKEN,
+    //         MATCH_ASSIGNMENT_EXPRESSION,
+    //         NULL,
+    //     },
+    //     NULL,
+    // },
+
     // argument-expression-list
-    [MATCH_ARGUMENT_EXPRESSION_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // assignment-expression
+    // fixed for recursion and first match
+    [MATCH_ARGUMENT_EXPRESSION_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // argument-expression , assignment-expression-list
             MATCH_ASSIGNMENT_EXPRESSION,
+            UTOKEN_COMMA | MF_UTOKEN,
+            MATCH_EXRESSION_LIST,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // argument-expression-list , assignment-expression
-            MATCH_EXRESSION_LIST,
-            UTOKEN_COMMA | MF_UTOKEN,
+        [TYPE_B] = (static_subrule_t){       // assignment-expression
             MATCH_ASSIGNMENT_EXPRESSION,
             NULL,
         },
@@ -198,8 +292,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // compound-literal
-    [MATCH_COMPOUND_LITERAL] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // ( storage-class-specifiersopt type-name ) braced-initializer
+    [MATCH_COMPOUND_LITERAL] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // ( storage-class-specifiersopt type-name ) braced-initializer
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_STORAGE_CLASS_SPECIFIERS | MF_OPTIONAL,
             MATCH_TYPE_NAME,
@@ -210,14 +304,29 @@ static_tree_t c_mtree = (static_tree_t){
         NULL,
     },
     
+    // // storage-class-specifiers
+    // [MATCH_STORAGE_CLASS_SPECIFIERS] = (static_rule_t){
+    //     [TYPE_A] = (static_subrule_t){       // storage-class-specifier
+    //         MATCH_STORAGE_CLASS_SPECIFIER,
+    //         NULL,
+    //     },
+    //     [TYPE_B] = (static_subrule_t){       // storage-class-specifiers storage-class-specifier
+    //         MATCH_STORAGE_CLASS_SPECIFIERS,
+    //         MATCH_STORAGE_CLASS_SPECIFIER,
+    //         NULL,
+    //     },
+    //     NULL,
+    // },
+
     // storage-class-specifiers
-    [MATCH_STORAGE_CLASS_SPECIFIERS] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // storage-class-specifier
+    // fixed for recursion and first match
+    [MATCH_STORAGE_CLASS_SPECIFIERS] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // storage-class-specifier storage-class-specifiers
             MATCH_STORAGE_CLASS_SPECIFIER,
+            MATCH_STORAGE_CLASS_SPECIFIERS,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // storage-class-specifiers storage-class-specifier
-            MATCH_STORAGE_CLASS_SPECIFIERS,
+        [TYPE_B] = (static_subrule_t){       // storage-class-specifier
             MATCH_STORAGE_CLASS_SPECIFIER,
             NULL,
         },
@@ -225,39 +334,39 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // unary-expression
-    [MATCH_UNARY_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // postfix-expression
+    [MATCH_UNARY_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // postfix-expression
             MATCH_POSTFIX_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // ++ unary-expression
+        [TYPE_B] = (static_subrule_t){       // ++ unary-expression
             UTOKEN_INCREMENT | MF_UTOKEN,
             MATCH_UNARY_EXPRESSION,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // -- unary-expression
+        [TYPE_C] = (static_subrule_t){       // -- unary-expression
             UTOKEN_DECREMENT | MF_UTOKEN,
             MATCH_UNARY_EXPRESSION,
             NULL,
         },
-        [TYPE_D] = (static_rule_t){       // unary-operator cast-expression
+        [TYPE_D] = (static_subrule_t){       // unary-operator cast-expression
             MATCH_UNARY_OPERATOR,
             MATCH_CAST_EXPRESSION,
             NULL,
         },
-        [TYPE_E] = (static_rule_t){       // sizeof unary-expression
+        [TYPE_E] = (static_subrule_t){       // sizeof unary-expression
             DTOKEN_SIZEOF | MF_DTOKEN,
             MATCH_UNARY_EXPRESSION,
             NULL,
         },
-        [TYPE_F] = (static_rule_t){       // sizeof ( type-name )
+        [TYPE_F] = (static_subrule_t){       // sizeof ( type-name )
             DTOKEN_SIZEOF | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_DTOKEN,
             MATCH_TYPE_NAME,
             UTOKEN_R_RBRACKET | MF_DTOKEN,
             NULL,
         },
-        [TYPE_G] = (static_rule_t){       // alignof ( type-name )
+        [TYPE_G] = (static_subrule_t){       // alignof ( type-name )
             DTOKEN_ALIGNOF | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_DTOKEN,
             MATCH_TYPE_NAME,
@@ -268,23 +377,23 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // unary-operator
-    [MATCH_UNARY_OPERATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ UTOKEN_AND     | MF_UTOKEN, NULL }, // &
-        [TYPE_B] = (static_rule_t){ UTOKEN_STAR    | MF_UTOKEN, NULL }, // *
-        [TYPE_C] = (static_rule_t){ UTOKEN_PLUS    | MF_UTOKEN, NULL }, // +
-        [TYPE_D] = (static_rule_t){ UTOKEN_MINUS   | MF_UTOKEN, NULL }, // -
-        [TYPE_E] = (static_rule_t){ UTOKEN_TILDE   | MF_UTOKEN, NULL }, // ~
-        [TYPE_F] = (static_rule_t){ UTOKEN_EXCLAIM | MF_UTOKEN, NULL }, // !
+    [MATCH_UNARY_OPERATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ UTOKEN_AND     | MF_UTOKEN, NULL }, // &
+        [TYPE_B] = (static_subrule_t){ UTOKEN_STAR    | MF_UTOKEN, NULL }, // *
+        [TYPE_C] = (static_subrule_t){ UTOKEN_PLUS    | MF_UTOKEN, NULL }, // +
+        [TYPE_D] = (static_subrule_t){ UTOKEN_MINUS   | MF_UTOKEN, NULL }, // -
+        [TYPE_E] = (static_subrule_t){ UTOKEN_TILDE   | MF_UTOKEN, NULL }, // ~
+        [TYPE_F] = (static_subrule_t){ UTOKEN_EXCLAIM | MF_UTOKEN, NULL }, // !
         NULL,
     },
 
     // cast-expression
-    [MATCH_CAST_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // unary-expression
+    [MATCH_CAST_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // unary-expression
             MATCH_UNARY_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // ( type-name ) cast-expression
+        [TYPE_B] = (static_subrule_t){       // ( type-name ) cast-expression
             UTOKEN_L_RBRACKET | MF_DTOKEN,
             MATCH_TYPE_NAME,
             UTOKEN_R_RBRACKET | MF_DTOKEN,
@@ -295,24 +404,24 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // multiplicative-expression
-    [MATCH_MULTIPLICATIVE_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // cast-expression
+    [MATCH_MULTIPLICATIVE_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // cast-expression
             MATCH_CAST_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // multiplicative-expression * cast-expression
+        [TYPE_B] = (static_subrule_t){       // multiplicative-expression * cast-expression
             MATCH_MULTIPLICATIVE_EXPRESSION,
             UTOKEN_STAR | MF_UTOKEN,
             MATCH_CAST_EXPRESSION,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // multiplicative-expression / cast-expression
+        [TYPE_C] = (static_subrule_t){       // multiplicative-expression / cast-expression
             MATCH_MULTIPLICATIVE_EXPRESSION,
             UTOKEN_FSLASH | MF_UTOKEN,
             MATCH_CAST_EXPRESSION,
             NULL,
         },
-        [TYPE_D] = (static_rule_t){       // multiplicative-expression % cast-expression
+        [TYPE_D] = (static_subrule_t){       // multiplicative-expression % cast-expression
             MATCH_MULTIPLICATIVE_EXPRESSION,
             UTOKEN_PERCENT | MF_UTOKEN,
             MATCH_CAST_EXPRESSION,
@@ -322,18 +431,18 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // additive-expression
-    [MATCH_ADDITIVE_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // multiplicative-expression
+    [MATCH_ADDITIVE_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // multiplicative-expression
             MATCH_MULTIPLICATIVE_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // additive-expression + multiplicative-expression
+        [TYPE_B] = (static_subrule_t){       // additive-expression + multiplicative-expression
             MATCH_ADDITIVE_EXPRESSION,
             UTOKEN_PLUS | MF_UTOKEN,
             MATCH_MULTIPLICATIVE_EXPRESSION
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // additive-expression - multiplicative-expression
+        [TYPE_C] = (static_subrule_t){       // additive-expression - multiplicative-expression
             MATCH_ADDITIVE_EXPRESSION,
             UTOKEN_MINUS | MF_UTOKEN,
             MATCH_MULTIPLICATIVE_EXPRESSION
@@ -343,18 +452,18 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // shift-expression
-    [MATCH_SHIFT_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // additive-expression
+    [MATCH_SHIFT_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // additive-expression
             MATCH_ADDITIVE_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // shift-expression << additive-expression
+        [TYPE_B] = (static_subrule_t){       // shift-expression << additive-expression
             MATCH_SHIFT_EXPRESSION,
             UTOKEN_LSHIFT | MF_UTOKEN,
             MATCH_ADDITIVE_EXPRESSION
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // shift-expression >> additive-expression
+        [TYPE_C] = (static_subrule_t){       // shift-expression >> additive-expression
             MATCH_SHIFT_EXPRESSION,
             UTOKEN_RSHIFT | MF_UTOKEN,
             MATCH_ADDITIVE_EXPRESSION
@@ -364,30 +473,30 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // relational-expression
-    [MATCH_RELATIONAL_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // shift-expression
+    [MATCH_RELATIONAL_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // shift-expression
             MATCH_SHIFT_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // relational-expression < shift-expression
+        [TYPE_B] = (static_subrule_t){       // relational-expression < shift-expression
             MATCH_RELATIONAL_EXPRESSION,
             UTOKEN_L_ABRACKET | MF_UTOKEN,
             MATCH_SHIFT_EXPRESSION
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // relational-expression > shift-expression
+        [TYPE_C] = (static_subrule_t){       // relational-expression > shift-expression
             MATCH_RELATIONAL_EXPRESSION,
             UTOKEN_R_ABRACKET | MF_UTOKEN,
             MATCH_SHIFT_EXPRESSION
             NULL,
         },
-        [TYPE_D] = (static_rule_t){       // relational-expression <= shift-expression
+        [TYPE_D] = (static_subrule_t){       // relational-expression <= shift-expression
             MATCH_RELATIONAL_EXPRESSION,
             UTOKEN_LEQUAL | MF_UTOKEN,
             MATCH_SHIFT_EXPRESSION
             NULL,
         },
-        [TYPE_E] = (static_rule_t){       // relational-expression >= shift-expression
+        [TYPE_E] = (static_subrule_t){       // relational-expression >= shift-expression
             MATCH_RELATIONAL_EXPRESSION,
             UTOKEN_GEQUAL | MF_UTOKEN,
             MATCH_SHIFT_EXPRESSION
@@ -397,18 +506,18 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // equality-expression
-    [MATCH_EQUALITY_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // relational-expression
+    [MATCH_EQUALITY_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // relational-expression
             MATCH_RELATIONAL_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // equality-expression == relational-expression
+        [TYPE_B] = (static_subrule_t){       // equality-expression == relational-expression
             MATCH_EQUALITY_EXPRESSION,
             UTOKEN_EQUALS | MF_UTOKEN,
             MATCH_RELATIONAL_EXPRESSION
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // equality-expression != relational-expression
+        [TYPE_C] = (static_subrule_t){       // equality-expression != relational-expression
             MATCH_EQUALITY_EXPRESSION,
             UTOKEN_NEQUALS | MF_UTOKEN,
             MATCH_RELATIONAL_EXPRESSION
@@ -418,12 +527,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // AND-expression
-    [MATCH_AND_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // equality-expression
+    [MATCH_AND_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // equality-expression
             MATCH_EQUALITY_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // AND-expression & equality-expression
+        [TYPE_B] = (static_subrule_t){       // AND-expression & equality-expression
             MATCH_AND_EXPRESSION,
             UTOKEN_AND | MF_UTOKEN,
             MATCH_EQUALITY_EXPRESSION,
@@ -433,12 +542,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // exclusive-OR-expression
-    [MATCH_EXCLUSIVE_OR_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // AND-expression
+    [MATCH_EXCLUSIVE_OR_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // AND-expression
             MATCH_AND_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // exclusive-OR-expression ^ AND-expression
+        [TYPE_B] = (static_subrule_t){       // exclusive-OR-expression ^ AND-expression
             MATCH_EXCLUSIVE_OR_EXPRESSION,
             UTOKEN_XOR | MF_UTOKEN,
             MATCH_AND_EXPRESSION,
@@ -448,12 +557,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // inclusive-OR-expression
-    [MATCH_INCLUSIVE_OR_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // exclusive-OR-expression
+    [MATCH_INCLUSIVE_OR_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // exclusive-OR-expression
             MATCH_EXCLUSIVE_OR_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // inclusive-OR-expression | exclusive-OR-expression
+        [TYPE_B] = (static_subrule_t){       // inclusive-OR-expression | exclusive-OR-expression
             MATCH_INCLUSIVE_OR_EXPRESSION,
             UTOKEN_OR | MF_UTOKEN,
             MATCH_EXCLUSIVE_OR_EXPRESSION,
@@ -463,12 +572,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // logical-AND-expression
-    [MATCH_LOGICAL_AND_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // inclusive-OR-expression
+    [MATCH_LOGICAL_AND_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // inclusive-OR-expression
             MATCH_INCLUSIVE_OR_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // logical-AND-expression && inclusive-OR-expression
+        [TYPE_B] = (static_subrule_t){       // logical-AND-expression && inclusive-OR-expression
             MATCH_LOGICAL_AND_EXPRESSION,
             UTOKEN_OR | MF_UTOKEN,
             MATCH_INCLUSIVE_OR_EXPRESSION,
@@ -478,12 +587,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // logical-OR-expression
-    [MATCH_LOGICAL_OR_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // logical-AND-expression
+    [MATCH_LOGICAL_OR_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // logical-AND-expression
             MATCH_LOGICAL_AND_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // logical-OR-expression || logical-AND-expression
+        [TYPE_B] = (static_subrule_t){       // logical-OR-expression || logical-AND-expression
             MATCH_LOGICAL_OR_EXPRESSION,
             UTOKEN_LOR | MF_UTOKEN,
             MATCH_LOGICAL_AND_EXPRESSION,
@@ -493,12 +602,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // conditional-expression
-    [MATCH_CONDITIONAL_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // logical-OR-expression
+    [MATCH_CONDITIONAL_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // logical-OR-expression
             MATCH_LOGICAL_OR_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // logical-OR-expression ? expression : conditional-expression
+        [TYPE_B] = (static_subrule_t){       // logical-OR-expression ? expression : conditional-expression
             MATCH_LOGICAL_OR_EXPRESSION,
             UTOKEN_QUESTION | MF_UTOKEN,
             MATCH_EXPRESSION,
@@ -510,12 +619,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // assignment-expression
-    [MATCH_ASSIGNMENT_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // conditional-expression
+    [MATCH_ASSIGNMENT_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // conditional-expression
             MATCH_CONDITIONAL_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // unary-expression assignment-operator assignment-expression
+        [TYPE_B] = (static_subrule_t){       // unary-expression assignment-operator assignment-expression
             MATCH_UNARY_EXPRESSION,
             MATCH_ASSIGNMENT_OPERATOR,
             MATCH_ASSIGNMENT_EXPRESSION,
@@ -525,28 +634,28 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // assignment-operator
-    [MATCH_ASSIGNMENT_OPERATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ UTOKEN_ASSIGN | MF_UTOKEN, NULL }, // =
-        [TYPE_B] = (static_rule_t){ UTOKEN_MUL_EQ | MF_UTOKEN, NULL }, // *=
-        [TYPE_C] = (static_rule_t){ UTOKEN_DIV_EQ | MF_UTOKEN, NULL }, // /=
-        [TYPE_D] = (static_rule_t){ UTOKEN_MOD_EQ | MF_UTOKEN, NULL }, // %=
-        [TYPE_E] = (static_rule_t){ UTOKEN_ADD_EQ | MF_UTOKEN, NULL }, // +=
-        [TYPE_I] = (static_rule_t){ UTOKEN_AND_EQ | MF_UTOKEN, NULL }, // &=
-        [TYPE_J] = (static_rule_t){ UTOKEN_XOR_EQ | MF_UTOKEN, NULL }, // ^=
-        [TYPE_K] = (static_rule_t){ UTOKEN_OR_EQ  | MF_UTOKEN, NULL }, // |=
-        [TYPE_F] = (static_rule_t){ UTOKEN_SUB_EQ | MF_UTOKEN, NULL }, // -=
-        [TYPE_G] = (static_rule_t){ UTOKEN_LSHIFT_EQ | MF_UTOKEN, NULL }, // <<=
-        [TYPE_H] = (static_rule_t){ UTOKEN_RSHIFT_EQ | MF_UTOKEN, NULL }, // >>=
+    [MATCH_ASSIGNMENT_OPERATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ UTOKEN_ASSIGN | MF_UTOKEN, NULL }, // =
+        [TYPE_B] = (static_subrule_t){ UTOKEN_MUL_EQ | MF_UTOKEN, NULL }, // *=
+        [TYPE_C] = (static_subrule_t){ UTOKEN_DIV_EQ | MF_UTOKEN, NULL }, // /=
+        [TYPE_D] = (static_subrule_t){ UTOKEN_MOD_EQ | MF_UTOKEN, NULL }, // %=
+        [TYPE_E] = (static_subrule_t){ UTOKEN_ADD_EQ | MF_UTOKEN, NULL }, // +=
+        [TYPE_I] = (static_subrule_t){ UTOKEN_AND_EQ | MF_UTOKEN, NULL }, // &=
+        [TYPE_J] = (static_subrule_t){ UTOKEN_XOR_EQ | MF_UTOKEN, NULL }, // ^=
+        [TYPE_K] = (static_subrule_t){ UTOKEN_OR_EQ  | MF_UTOKEN, NULL }, // |=
+        [TYPE_F] = (static_subrule_t){ UTOKEN_SUB_EQ | MF_UTOKEN, NULL }, // -=
+        [TYPE_G] = (static_subrule_t){ UTOKEN_LSHIFT_EQ | MF_UTOKEN, NULL }, // <<=
+        [TYPE_H] = (static_subrule_t){ UTOKEN_RSHIFT_EQ | MF_UTOKEN, NULL }, // >>=
         NULL,
     },
     
     // expression
-    [MATCH_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // assignment-expression
+    [MATCH_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // assignment-expression
             MATCH_ASSIGNMENT_EXPRESSION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // expression , assignment-expression
+        [TYPE_B] = (static_subrule_t){       // expression , assignment-expression
             MATCH_EXPRESSION,
             UTOKEN_COMMA | MF_UTOKEN,
             MATCH_ASSIGNMENT_EXPRESSION,
@@ -556,8 +665,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // constant-expression
-    [MATCH_CONSTANT_EXPRESSION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // conditional-expression
+    [MATCH_CONSTANT_EXPRESSION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // conditional-expression
             MATCH_CONDITIONAL_EXPRESSION,
             NULL,
         },
@@ -570,25 +679,25 @@ static_tree_t c_mtree = (static_tree_t){
     //####################################################
 
     // declaration
-    [MATCH_DECLARATION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // declaration-specifiers init-declarator-listopt ;
+    [MATCH_DECLARATION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // declaration-specifiers init-declarator-listopt ;
             MATCH_DECLARATION_SPECIFIERS,
             MATCH_INIT_DECLARATOR_LIST | MF_OPTIONAL,
             UTOKEN_SEMICOLON | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){ // attribute-specifier-sequence declaration-specifiers init-declarator-list ;
+        [TYPE_B] = (static_subrule_t){ // attribute-specifier-sequence declaration-specifiers init-declarator-list ;
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE,
             MATCH_DECLARATION_SPECIFIERS,
             MATCH_INIT_DECLARATOR_LIST,
             UTOKEN_SEMICOLON | MF_UTOKEN,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // static_assert-declaration
+        [TYPE_C] = (static_subrule_t){       // static_assert-declaration
             MATCH_STATIC_ASSERT_DECLARATION,
             NULL,
         },
-        [TYPE_D] = (static_rule_t){       // attribute-declaration
+        [TYPE_D] = (static_subrule_t){       // attribute-declaration
             MATCH_ATTRIBUTE_DECLARATION,
             NULL,
         },
@@ -596,13 +705,13 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // declaration-specifiers
-    [MATCH_DECLARATION_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // declaration-specifier attribute-specifier-sequenceopt
+    [MATCH_DECLARATION_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // declaration-specifier attribute-specifier-sequenceopt
             MATCH_DECLARATION_SPECIFIER,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // declaration-specifier declaration-specifiers
+        [TYPE_B] = (static_subrule_t){       // declaration-specifier declaration-specifiers
             MATCH_DECLARATION_SPECIFIER,
             MATCH_DECLARATION_SPECIFIERS,
             NULL,
@@ -611,20 +720,20 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // declaration-specifier
-    [MATCH_DECLARATION_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_STORAGE_CLASS_SPECIFIER, NULL },  // storage-class-specifier
-        [TYPE_B] = (static_rule_t){ MATCH_TYPE_SPECIFIER_QUALIFIER, NULL }, // type-specifier-qualifier
-        [TYPE_C] = (static_rule_t){ MATCH_FUNCTION_SPECIFIER, NULL },       // function-specifier
+    [MATCH_DECLARATION_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_STORAGE_CLASS_SPECIFIER, NULL },  // storage-class-specifier
+        [TYPE_B] = (static_subrule_t){ MATCH_TYPE_SPECIFIER_QUALIFIER, NULL }, // type-specifier-qualifier
+        [TYPE_C] = (static_subrule_t){ MATCH_FUNCTION_SPECIFIER, NULL },       // function-specifier
         NULL,
     },
 
     // init-declarator-list
-    [MATCH_INIT_DECLARATOR_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // init-declarator
+    [MATCH_INIT_DECLARATOR_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // init-declarator
             MATCH_INIT_DECLARATOR,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // init-declarator-list , init-declarator
+        [TYPE_B] = (static_subrule_t){       // init-declarator-list , init-declarator
             MATCH_INIT_DECLARATOR_LIST,
             UTOKEN_COMMA | MF_UTOKEN,
             MATCH_INIT_DECLARATOR,
@@ -634,12 +743,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // init-declarator
-    [MATCH_INIT_DECLARATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // declarator
+    [MATCH_INIT_DECLARATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // declarator
             MATCH_DECLARATOR,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // declarator = initializer
+        [TYPE_B] = (static_subrule_t){       // declarator = initializer
             MATCH_DECLARATOR,
             UTOKEN_ASSIGN | MF_UTOKEN,
             MATCH_INITIALIZER,
@@ -650,8 +759,8 @@ static_tree_t c_mtree = (static_tree_t){
 
     // TODO: implement later
     // attribute-declaration
-    [MATCH_ATTRIBUTE_DECLARATION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // not implemented yet
+    [MATCH_ATTRIBUTE_DECLARATION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // not implemented yet
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -659,39 +768,39 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // storage-class-specifier
-    [MATCH_STORAGE_CLASS_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ DTOKEN_AUTO         | MF_DTOKEN, NULL },  // auto
-        [TYPE_B] = (static_rule_t){ DTOKEN_CONSTEXPR    | MF_DTOKEN, NULL },  // constexpr
-        [TYPE_C] = (static_rule_t){ DTOKEN_EXTERN       | MF_DTOKEN, NULL },  // extern
-        [TYPE_D] = (static_rule_t){ DTOKEN_REGISTER     | MF_DTOKEN, NULL },  // register
-        [TYPE_E] = (static_rule_t){ DTOKEN_STATIC       | MF_DTOKEN, NULL },  // static
-        [TYPE_F] = (static_rule_t){ DTOKEN_THREAD_LOCAL | MF_DTOKEN, NULL },  // thread_local
-        [TYPE_G] = (static_rule_t){ DTOKEN_TYPEDEF      | MF_DTOKEN, NULL },  // typedef
+    [MATCH_STORAGE_CLASS_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ DTOKEN_AUTO         | MF_DTOKEN, NULL },  // auto
+        [TYPE_B] = (static_subrule_t){ DTOKEN_CONSTEXPR    | MF_DTOKEN, NULL },  // constexpr
+        [TYPE_C] = (static_subrule_t){ DTOKEN_EXTERN       | MF_DTOKEN, NULL },  // extern
+        [TYPE_D] = (static_subrule_t){ DTOKEN_REGISTER     | MF_DTOKEN, NULL },  // register
+        [TYPE_E] = (static_subrule_t){ DTOKEN_STATIC       | MF_DTOKEN, NULL },  // static
+        [TYPE_F] = (static_subrule_t){ DTOKEN_THREAD_LOCAL | MF_DTOKEN, NULL },  // thread_local
+        [TYPE_G] = (static_subrule_t){ DTOKEN_TYPEDEF      | MF_DTOKEN, NULL },  // typedef
         NULL,
     },
 
     // type-specifier
-    [MATCH_TYPE_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ DTOKEN_VOID       | MF_DTOKEN, NULL },    // void
-        [TYPE_B] = (static_rule_t){ DTOKEN_CHAR       | MF_DTOKEN, NULL },    // char
-        [TYPE_C] = (static_rule_t){ DTOKEN_SHORT      | MF_DTOKEN, NULL },    // short
-        [TYPE_D] = (static_rule_t){ DTOKEN_INT        | MF_DTOKEN, NULL },    // int
-        [TYPE_E] = (static_rule_t){ DTOKEN_LONG       | MF_DTOKEN, NULL },    // long
-        [TYPE_F] = (static_rule_t){ DTOKEN_FLOAT      | MF_DTOKEN, NULL },    // float
-        [TYPE_G] = (static_rule_t){ DTOKEN_DOUBLE     | MF_DTOKEN, NULL },    // double
-        [TYPE_H] = (static_rule_t){ DTOKEN_SIGNED     | MF_DTOKEN, NULL },    // signed
-        [TYPE_I] = (static_rule_t){ DTOKEN_UNSIGNED   | MF_DTOKEN, NULL },    // unsigned
-        [TYPE_J] = (static_rule_t){ DTOKEN_BOOL       | MF_DTOKEN, NULL },    // bool
-        [TYPE_K] = (static_rule_t){ DTOKEN_COMPLEX    | MF_DTOKEN, NULL },    // _Complex
-        [TYPE_L] = (static_rule_t){ DTOKEN_DECIMAL32  | MF_DTOKEN, NULL },    // _Decimal32
-        [TYPE_M] = (static_rule_t){ DTOKEN_DECIMAL64  | MF_DTOKEN, NULL },    // _Decimal64
-        [TYPE_N] = (static_rule_t){ DTOKEN_DECIMAL128 | MF_DTOKEN, NULL },    // _Decimal128
-        [TYPE_O] = (static_rule_t){ MATCH_ENUM_SPECIFIER,    NULL },          // enum-specifier
-        [TYPE_P] = (static_rule_t){ MATCH_TYPEDEF_NAME,      NULL },          // typedef-name
-        [TYPE_Q] = (static_rule_t){ MATCH_TYPEOF_SPECIFIER , NULL },          // typeof-specifier
-        [TYPE_R] = (static_rule_t){ MATCH_ATOMIC_TYPE_SPECIFIER,     NULL },  // atomic-type-specifier
-        [TYPE_S] = (static_rule_t){ MATCH_STRUCT_OR_UNION_SPECIFIER, NULL },  // struct-or-union-specifier
-        [TYPE_T] = (static_rule_t){ 
+    [MATCH_TYPE_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ DTOKEN_VOID       | MF_DTOKEN, NULL },    // void
+        [TYPE_B] = (static_subrule_t){ DTOKEN_CHAR       | MF_DTOKEN, NULL },    // char
+        [TYPE_C] = (static_subrule_t){ DTOKEN_SHORT      | MF_DTOKEN, NULL },    // short
+        [TYPE_D] = (static_subrule_t){ DTOKEN_INT        | MF_DTOKEN, NULL },    // int
+        [TYPE_E] = (static_subrule_t){ DTOKEN_LONG       | MF_DTOKEN, NULL },    // long
+        [TYPE_F] = (static_subrule_t){ DTOKEN_FLOAT      | MF_DTOKEN, NULL },    // float
+        [TYPE_G] = (static_subrule_t){ DTOKEN_DOUBLE     | MF_DTOKEN, NULL },    // double
+        [TYPE_H] = (static_subrule_t){ DTOKEN_SIGNED     | MF_DTOKEN, NULL },    // signed
+        [TYPE_I] = (static_subrule_t){ DTOKEN_UNSIGNED   | MF_DTOKEN, NULL },    // unsigned
+        [TYPE_J] = (static_subrule_t){ DTOKEN_BOOL       | MF_DTOKEN, NULL },    // bool
+        [TYPE_K] = (static_subrule_t){ DTOKEN_COMPLEX    | MF_DTOKEN, NULL },    // _Complex
+        [TYPE_L] = (static_subrule_t){ DTOKEN_DECIMAL32  | MF_DTOKEN, NULL },    // _Decimal32
+        [TYPE_M] = (static_subrule_t){ DTOKEN_DECIMAL64  | MF_DTOKEN, NULL },    // _Decimal64
+        [TYPE_N] = (static_subrule_t){ DTOKEN_DECIMAL128 | MF_DTOKEN, NULL },    // _Decimal128
+        [TYPE_O] = (static_subrule_t){ MATCH_ENUM_SPECIFIER,    NULL },          // enum-specifier
+        [TYPE_P] = (static_subrule_t){ MATCH_TYPEDEF_NAME,      NULL },          // typedef-name
+        [TYPE_Q] = (static_subrule_t){ MATCH_TYPEOF_SPECIFIER , NULL },          // typeof-specifier
+        [TYPE_R] = (static_subrule_t){ MATCH_ATOMIC_TYPE_SPECIFIER,     NULL },  // atomic-type-specifier
+        [TYPE_S] = (static_subrule_t){ MATCH_STRUCT_OR_UNION_SPECIFIER, NULL },  // struct-or-union-specifier
+        [TYPE_T] = (static_subrule_t){ 
             DTOKEN_BITINT | MF_DTOKEN,          // _BitInt ( constant-expression )
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_CONSTANT_EXPRESSION,
@@ -702,9 +811,9 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // struct-or-union-specifier
-    [MATCH_STRUCT_OR_UNION_SPECIFIER] = (static_target_t){
+    [MATCH_STRUCT_OR_UNION_SPECIFIER] = (static_rule_t){
             // struct-or-union attribute-specifier-sequenceopt identifieropt { member-declaration-list }
-        [TYPE_A] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){
             MATCH_STRUCT_OR_UNION,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_IDENTIFIER | MF_OPTIONAL,
@@ -713,7 +822,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_R_CBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){   // struct-or-union attribute-specifier-sequenceopt identifier
+        [TYPE_B] = (static_subrule_t){   // struct-or-union attribute-specifier-sequenceopt identifier
             MATCH_STRUCT_OR_UNION,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_IDENTIFIER,
@@ -723,19 +832,19 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // struct-or-union
-    [MATCH_STRUCT_OR_UNION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){  DTOKEN_STRUCT | MF_DTOKEN, NULL }, // struct
-        [TYPE_B] = (static_rule_t){  DTOKEN_UNION  | MF_DTOKEN, NULL }, // union
+    [MATCH_STRUCT_OR_UNION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){  DTOKEN_STRUCT | MF_DTOKEN, NULL }, // struct
+        [TYPE_B] = (static_subrule_t){  DTOKEN_UNION  | MF_DTOKEN, NULL }, // union
         NULL,
     },
 
     // member-declaration-list
-    [MATCH_MEMBER_DECLARATION_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // member-declaration
+    [MATCH_MEMBER_DECLARATION_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // member-declaration
             MATCH_MEMBER_DECLARATION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // member-declaration-list member-declaration
+        [TYPE_B] = (static_subrule_t){       // member-declaration-list member-declaration
             MATCH_MEMBER_DECLARATION_LIST,
             MATCH_MEMBER_DECLARATION,
             NULL,
@@ -744,16 +853,16 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // member-declaration
-    [MATCH_MEMBER_DECLARATION] = (static_target_t){
+    [MATCH_MEMBER_DECLARATION] = (static_rule_t){
             // attribute-specifier-sequenceopt specifier-qualifier-list member-declarator-listopt ;
-        [TYPE_A] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_SPECIFIER_QUALIFIER_LIST,
             MATCH_MEMBER_DECLARATOR_LIST | MF_OPTIONAL,
             UTOKEN_SEMICOLON | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // static_assert-declaration
+        [TYPE_B] = (static_subrule_t){       // static_assert-declaration
             MATCH_STATIC_ASSERT_DECLARATION,
             NULL,
         },
@@ -761,13 +870,13 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // specifier-qualifier-list
-    [MATCH_SPECIFIER_QUALIFIER_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // type-specifier-qualifier attribute-specifier-sequenceop
+    [MATCH_SPECIFIER_QUALIFIER_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // type-specifier-qualifier attribute-specifier-sequenceop
             MATCH_TYPE_SPECIFIER_QUALIFIER,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // type-specifier-qualifier specifier-qualifier-list
+        [TYPE_B] = (static_subrule_t){       // type-specifier-qualifier specifier-qualifier-list
             MATCH_TYPE_SPECIFIER_QUALIFIER,
             MATCH_SPECIFIER_QUALIFIER_LIST,
             NULL,
@@ -776,20 +885,20 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // type-specifier-qualifier
-    [MATCH_TYPE_SPECIFIER_QUALIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_TYPE_SPECIFIER, NULL },         // type-specifier
-        [TYPE_B] = (static_rule_t){ MATCH_TYPE_QUALIFIER, NULL, },        // type-qualifier
-        [TYPE_C] = (static_rule_t){ MATCH_ALIGNMENT_SPECIFIER, NULL, },   // alignment-specifier
+    [MATCH_TYPE_SPECIFIER_QUALIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_TYPE_SPECIFIER, NULL },         // type-specifier
+        [TYPE_B] = (static_subrule_t){ MATCH_TYPE_QUALIFIER, NULL, },        // type-qualifier
+        [TYPE_C] = (static_subrule_t){ MATCH_ALIGNMENT_SPECIFIER, NULL, },   // alignment-specifier
         NULL,
     },
 
     // member-declarator-list
-    [MATCH_MEMBER_DECLARATOR_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // member-declarator
+    [MATCH_MEMBER_DECLARATOR_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // member-declarator
             MATCH_MEMBER_DECLARATOR,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // member-declarator-list , member-declarator
+        [TYPE_B] = (static_subrule_t){       // member-declarator-list , member-declarator
             MATCH_MEMBER_DECLARATOR_LIST,
             UTOKEN_COMMA | MF_UTOKEN,
             MATCH_MEMBER_DECLARATOR,
@@ -799,12 +908,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // member-declarator
-    [MATCH_MEMBER_DECLARATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // declarator
+    [MATCH_MEMBER_DECLARATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // declarator
             MATCH_DECLARATOR,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // declaratoropt : constant-expression
+        [TYPE_B] = (static_subrule_t){       // declaratoropt : constant-expression
             MATCH_DECLARATOR | MF_OPTIONAL,
             UTOKEN_COLON | MF_UTOKEN,
             MATCH_CONSTANT_EXPRESSION,
@@ -814,9 +923,9 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // enum-specifier
-    [MATCH_ENUM_SPECIFIER] = (static_target_t){
+    [MATCH_ENUM_SPECIFIER] = (static_rule_t){
             // enum attribute-specifier-sequenceopt identifieropt enum-type-specifieropt { enumerator-list }
-        [TYPE_A] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){
             DTOKEN_ENUM | MF_DTOKEN,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_IDENTIFIER | MF_OPTIONAL,
@@ -826,7 +935,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_R_CBRACKET | MF_UTOKEN,
             NULL,
         },  // enum attribute-specifier-sequenceopt identifieropt enum-type-specifieropt { enumerator-list , }
-        [TYPE_B] = (static_rule_t){
+        [TYPE_B] = (static_subrule_t){
             DTOKEN_ENUM | MF_DTOKEN,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_IDENTIFIER | MF_OPTIONAL,
@@ -837,7 +946,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_R_CBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // enum identifier enum-type-specifieropt
+        [TYPE_C] = (static_subrule_t){       // enum identifier enum-type-specifieropt
             DTOKEN_ENUM | MF_DTOKEN,
             MATCH_IDENTIFIER,
             MATCH_ENUM_TYPE_SPECIFIER | MF_OPTIONAL,
@@ -847,12 +956,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // enumerator-list
-    [MATCH_ENUMERATOR_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // enumerator
+    [MATCH_ENUMERATOR_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // enumerator
             MATCH_ENUMERATOR,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // enumerator-list , enumerator
+        [TYPE_B] = (static_subrule_t){       // enumerator-list , enumerator
             MATCH_ENUMERATOR_LIST,
             UTOKEN_COMMA | MF_UTOKEN,
             MATCH_ENUMERATOR,
@@ -862,13 +971,13 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // enumerator
-    [MATCH_ENUMERATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // enumeration-constant attribute-specifier-sequenceopt
+    [MATCH_ENUMERATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // enumeration-constant attribute-specifier-sequenceopt
             MATCH_ENUMERATION_CONSTANT,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){ // enumeration-constant attribute-specifier-sequenceopt = constant-expression
+        [TYPE_B] = (static_subrule_t){ // enumeration-constant attribute-specifier-sequenceopt = constant-expression
             MATCH_ENUMERATION_CONSTANT,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             UTOKEN_ASSIGN | MF_UTOKEN,
@@ -879,8 +988,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // enum-type-specifier
-    [MATCH_ENUM_TYPE_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // : specifier-qualifier-list
+    [MATCH_ENUM_TYPE_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // : specifier-qualifier-list
             UTOKEN_COLON | MF_UTOKEN,
             MATCH_SPECIFIER_QUALIFIER_LIST,
             NULL,
@@ -889,8 +998,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // atomic-type-specifier
-    [MATCH_ATOMIC_TYPE_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // _Atomic ( type-name )
+    [MATCH_ATOMIC_TYPE_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // _Atomic ( type-name )
             DTOKEN_ATOMIC | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_TYPE_NAME,
@@ -901,15 +1010,15 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // typeof-specifier
-    [MATCH_TYPEOF_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // typeof ( typeof-specifier-argument )
+    [MATCH_TYPEOF_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // typeof ( typeof-specifier-argument )
             DTOKEN_TYPEOF | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_TYPEOF_SPECIFIER_ARGUMENT,
             UTOKEN_R_RBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // typeof_unqual ( typeof-specifier-argument )
+        [TYPE_B] = (static_subrule_t){       // typeof_unqual ( typeof-specifier-argument )
             DTOKEN_TYPEOF_UNQUAL | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_TYPEOF_SPECIFIER_ARGUMENT,
@@ -920,38 +1029,38 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // typeof-specifier-argument
-    [MATCH_TYPEOF_SPECIFIER_ARGUMENT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_EXPRESSION, NULL }, // expression
-        [TYPE_B] = (static_rule_t){ MATCH_TYPE_NAME,  NULL }, // type-name
+    [MATCH_TYPEOF_SPECIFIER_ARGUMENT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_EXPRESSION, NULL }, // expression
+        [TYPE_B] = (static_subrule_t){ MATCH_TYPE_NAME,  NULL }, // type-name
         NULL,
     },
 
     // type-qualifier
-    [MATCH_TYPE_QUALIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ DTOKEN_CONST    | MF_DTOKEN, NULL }, // const
-        [TYPE_B] = (static_rule_t){ DTOKEN_RESTRICT | MF_DTOKEN, NULL }, // restrict
-        [TYPE_C] = (static_rule_t){ DTOKEN_VOLATILE | MF_DTOKEN, NULL }, // volatile
-        [TYPE_D] = (static_rule_t){ DTOKEN_ATOMIC   | MF_DTOKEN, NULL }, // _Atomic
+    [MATCH_TYPE_QUALIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ DTOKEN_CONST    | MF_DTOKEN, NULL }, // const
+        [TYPE_B] = (static_subrule_t){ DTOKEN_RESTRICT | MF_DTOKEN, NULL }, // restrict
+        [TYPE_C] = (static_subrule_t){ DTOKEN_VOLATILE | MF_DTOKEN, NULL }, // volatile
+        [TYPE_D] = (static_subrule_t){ DTOKEN_ATOMIC   | MF_DTOKEN, NULL }, // _Atomic
         NULL,
     },
 
     // function-specifier
-    [MATCH_FUNCTION_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ DTOKEN_INLINE   | MF_DTOKEN, NULL }, // inline
-        [TYPE_B] = (static_rule_t){ DTOKEN_NORETURN | MF_DTOKEN, NULL }, // _Noreturn
+    [MATCH_FUNCTION_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ DTOKEN_INLINE   | MF_DTOKEN, NULL }, // inline
+        [TYPE_B] = (static_subrule_t){ DTOKEN_NORETURN | MF_DTOKEN, NULL }, // _Noreturn
         NULL,
     },
 
     // alignment-specifier
-    [MATCH_ALIGNMENT_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // alignas ( type-name )
+    [MATCH_ALIGNMENT_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // alignas ( type-name )
             DTOKEN_ALIGNAS | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_TYPE_NAME,
             UTOKEN_R_RBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // alignas ( constant-expression )
+        [TYPE_B] = (static_subrule_t){       // alignas ( constant-expression )
             DTOKEN_ALIGNAS | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_CONSTANT_EXPRESSION,
@@ -962,8 +1071,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // declarator
-    [MATCH_DECLARATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // pointeropt direct-declarator
+    [MATCH_DECLARATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // pointeropt direct-declarator
             MATCH_POINTER | MF_OPTIONAL,
             MATCH_DIRECT_DECLARATOR,
             NULL,
@@ -972,24 +1081,24 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // direct-declarator
-    [MATCH_DIRECT_DECLARATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // identifier attribute-specifier-sequenceopt
+    [MATCH_DIRECT_DECLARATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // identifier attribute-specifier-sequenceopt
             MATCH_IDENTIFIER,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // ( declarator )
+        [TYPE_B] = (static_subrule_t){       // ( declarator )
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_DECLARATOR,
             UTOKEN_R_RBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // array-declarator attribute-specifier-sequenceopt
+        [TYPE_C] = (static_subrule_t){       // array-declarator attribute-specifier-sequenceopt
             MATCH_ARRAY_DECLARATOR,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             NULL,
         },
-        [TYPE_D] = (static_rule_t){       // function-declarator attribute-specifier-sequenceopt
+        [TYPE_D] = (static_subrule_t){       // function-declarator attribute-specifier-sequenceopt
             MATCH_FUNCTION_DECLARATOR,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             NULL,
@@ -998,8 +1107,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // array-declarator
-    [MATCH_ARRAY_DECLARATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ // direct-declarator [ type-qualifier-listopt assignment-expressionopt ]
+    [MATCH_ARRAY_DECLARATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ // direct-declarator [ type-qualifier-listopt assignment-expressionopt ]
             MATCH_DIRECT_DECLARATOR,
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             MATCH_TYPE_QUALIFIER_LIST | MF_OPTIONAL,
@@ -1007,7 +1116,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_R_SBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){ // direct-declarator [ static type-qualifier-listopt assignment-expression ]
+        [TYPE_B] = (static_subrule_t){ // direct-declarator [ static type-qualifier-listopt assignment-expression ]
             MATCH_DIRECT_DECLARATOR,
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             DTOKEN_STATIC | MF_DTOKEN,
@@ -1016,7 +1125,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_R_SBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){ // direct-declarator [ type-qualifier-list static assignment-expression ]
+        [TYPE_C] = (static_subrule_t){ // direct-declarator [ type-qualifier-list static assignment-expression ]
             MATCH_DIRECT_DECLARATOR,
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             MATCH_TYPE_QUALIFIER_LIST,
@@ -1025,7 +1134,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_R_SBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_D] = (static_rule_t){       // direct-declarator [ type-qualifier-listopt * ]
+        [TYPE_D] = (static_subrule_t){       // direct-declarator [ type-qualifier-listopt * ]
             MATCH_DIRECT_DECLARATOR,
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             MATCH_TYPE_QUALIFIER_LIST | MF_OPTIONAL,
@@ -1037,8 +1146,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // function-declarator
-    [MATCH_FUNCTION_DECLARATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // direct-declarator ( parameter-type-listopt )
+    [MATCH_FUNCTION_DECLARATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // direct-declarator ( parameter-type-listopt )
             DIRECT_DECLARATOR,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_PARAMETER_TYPE_LIST | MF_OPTIONAL,
@@ -1049,14 +1158,14 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // pointer
-    [MATCH_POINTER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // * attribute-specifier-sequenceopt type-qualifier-listopt
+    [MATCH_POINTER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // * attribute-specifier-sequenceopt type-qualifier-listopt
             UTOKEN_STAR | MF_UTOKEN,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_TYPE_QUALIFIER_LIST | MF_OPTIONAL,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // * attribute-specifier-sequenceopt type-qualifier-listopt pointer
+        [TYPE_B] = (static_subrule_t){       // * attribute-specifier-sequenceopt type-qualifier-listopt pointer
             UTOKEN_STAR | MF_UTOKEN,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_TYPE_QUALIFIER_LIST | MF_OPTIONAL,
@@ -1067,12 +1176,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // type-qualifier-list
-    [MATCH_TYPE_QUALIFIER_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // type-qualifier
+    [MATCH_TYPE_QUALIFIER_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // type-qualifier
             MATCH_TYPE_QUALIFIER,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // type-qualifier-list type-qualifier
+        [TYPE_B] = (static_subrule_t){       // type-qualifier-list type-qualifier
             MATCH_TYPE_QUALIFIER_LIST,
             MATCH_TYPE_QUALIFIER,
             NULL,
@@ -1081,17 +1190,17 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // parameter-type-list
-    [MATCH_PARAMETER_TYPE_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // parameter-list
+    [MATCH_PARAMETER_TYPE_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // parameter-list
             MATCH_PARAMETER_LIST,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // parameter-list, ...
+        [TYPE_B] = (static_subrule_t){       // parameter-list, ...
             MATCH_PARAMETER_LIST,
             UTOKEN_VARGS | MF_UTOKEN,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // ...
+        [TYPE_C] = (static_subrule_t){       // ...
             UTOKEN_VARGS | MF_UTOKEN,
             NULL,
         },
@@ -1099,12 +1208,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // parameter-list
-    [MATCH_PARAMETER_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // parameter-declaration
+    [MATCH_PARAMETER_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // parameter-declaration
             MATCH_PARAMETER_DECLARATION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // parameter-list , parameter-declaration
+        [TYPE_B] = (static_subrule_t){       // parameter-list , parameter-declaration
             MATCH_PARAMETER_LIST,
             UTOKEN_COMMA | MF_UTOKEN,
             MATCH_PARAMETER_DECLARATION,
@@ -1114,14 +1223,14 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // parameter-declaration
-    [MATCH_PARAMETER_DECLARATION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // attribute-specifier-sequenceopt declaration-specifiers declarator
+    [MATCH_PARAMETER_DECLARATION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // attribute-specifier-sequenceopt declaration-specifiers declarator
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_DECLARATION_SPECIFIERS,
             MATCH_DECLARATOR,
             NULL,
         },      // attribute-specifier-sequenceopt declaration-specifiers abstract-declaratoropt
-        [TYPE_B] = (static_rule_t){
+        [TYPE_B] = (static_subrule_t){
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_DECLARATION_SPECIFIERS,
             MATCH_ABSTRACT_DECLARATOR | MF_OPTIONAL,
@@ -1131,8 +1240,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // type-name
-    [MATCH_TYPE_NAME] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // specifier-qualifier-list abstract-declaratoropt
+    [MATCH_TYPE_NAME] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // specifier-qualifier-list abstract-declaratoropt
             MATCH_SPECIFIER_QUALIFIER_LIST,
             MATCH_ABSTRACT_DECLARATOR | MF_OPTIONAL,
             NULL,
@@ -1141,12 +1250,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // abstract-declarator
-    [MATCH_ABSTRACT_DECLARATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // pointer
+    [MATCH_ABSTRACT_DECLARATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // pointer
             MATCH_POINTER,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // pointeropt direct-abstract-declarator
+        [TYPE_B] = (static_subrule_t){       // pointeropt direct-abstract-declarator
             MATCH_POINTER | MF_OPTIONAL,
             MATCH_DIRECT_ABSTRACT_DECLARATOR,
             NULL,
@@ -1155,19 +1264,19 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // direct-abstract-declarator
-    [MATCH_DIRECT_ABSTRACT_DECLARATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // ( abstract-declarator )
+    [MATCH_DIRECT_ABSTRACT_DECLARATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // ( abstract-declarator )
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_ABSTRACT_DECLARATOR,
             UTOKEN_R_RBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // array-abstract-declarator attribute-specifier-sequenceopt
+        [TYPE_B] = (static_subrule_t){       // array-abstract-declarator attribute-specifier-sequenceopt
             MATCH_ARRAY_ABSTRACT_DECLARATOR,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // function-abstract-declarator attribute-specifier-sequenceopt
+        [TYPE_C] = (static_subrule_t){       // function-abstract-declarator attribute-specifier-sequenceopt
             MATCH_FUNCTION_ABSTRACT_DECLARATOR,
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             NULL,
@@ -1176,9 +1285,9 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // array-abstract-declarator
-    [MATCH_ARRAY_ABSTRACT_DECLARATOR] = (static_target_t){
+    [MATCH_ARRAY_ABSTRACT_DECLARATOR] = (static_rule_t){
                 // direct-abstract-declaratoropt [ type-qualifier-listopt assignment-expressionopt ]
-        [TYPE_A] = (static_rule_t){ 
+        [TYPE_A] = (static_subrule_t){ 
             MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             MATCH_TYPE_QUALIFIER_LIST | MF_OPTIONAL,
@@ -1186,7 +1295,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_R_SBRACKET | MF_UTOKEN,
             NULL,
         },      // direct-abstract-declaratoropt [ static type-qualifier-listopt assignment-expression ]
-        [TYPE_B] = (static_rule_t){
+        [TYPE_B] = (static_subrule_t){
             MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             DTOKEN_STATIC | MF_DTOKEN,
@@ -1195,7 +1304,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_R_SBRACKET | MF_UTOKEN,
             NULL,
         },      // direct-abstract-declaratoropt [ type-qualifier-list static assignment-expression ]
-        [TYPE_C] = (static_rule_t){
+        [TYPE_C] = (static_subrule_t){
             MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             MATCH_TYPE_QUALIFIER_LIST,
@@ -1204,7 +1313,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_R_SBRACKET | MF_UTOKEN,
             NULL,
         },      // direct-abstract-declaratoropt [ * ]
-        [TYPE_D] = (static_rule_t){
+        [TYPE_D] = (static_subrule_t){
             MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             UTOKEN_STAR | MF_UTOKEN,
@@ -1215,8 +1324,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // function-abstract-declarator
-    [MATCH_FUNCTION_ABSTRACT_DECLARATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // direct-abstract-declaratoropt ( parameter-type-listopt )
+    [MATCH_FUNCTION_ABSTRACT_DECLARATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // direct-abstract-declaratoropt ( parameter-type-listopt )
             MATCH_DIRECT_ABSTRACT_DECLARATOR | MF_OPTIONAL,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_PARAMETER_TYPE_LIST | MF_OPTIONAL,
@@ -1227,25 +1336,25 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // typedef-name
-    [MATCH_TYPEDEF_NAME] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_IDENTIFIER, NULL }, // identifier
+    [MATCH_TYPEDEF_NAME] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_IDENTIFIER, NULL }, // identifier
         NULL,
     },
 
     // braced-initializer
-    [MATCH_BRACED_INITIALIZER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // { }
+    [MATCH_BRACED_INITIALIZER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // { }
             UTOKEN_L_CBRACKET | MF_UTOKEN,
             UTOKEN_R_CBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // { initializer-list }
+        [TYPE_B] = (static_subrule_t){       // { initializer-list }
             UTOKEN_L_CBRACKET | MF_UTOKEN,
             MATCH_INITIALIZER_LIST,
             UTOKEN_R_CBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // { initializer-list , }
+        [TYPE_C] = (static_subrule_t){       // { initializer-list , }
             UTOKEN_L_CBRACKET | MF_UTOKEN,
             MATCH_INITIALIZER_LIST,
             UTOKEN_COMMA | MF_UTOKEN,
@@ -1256,20 +1365,20 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // initializer
-    [MATCH_INITIALIZER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_ASSIGNMENT_EXPRESSION, NULL },  // assignment-expression
-        [TYPE_B] = (static_rule_t){ MATCH_BRACED_INITIALIZER,    NULL },  // braced-initializer
+    [MATCH_INITIALIZER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_ASSIGNMENT_EXPRESSION, NULL },  // assignment-expression
+        [TYPE_B] = (static_subrule_t){ MATCH_BRACED_INITIALIZER,    NULL },  // braced-initializer
         NULL,
     },
 
     // initializer-list
-    [MATCH_INITIALIZER_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // designationopt initializer
+    [MATCH_INITIALIZER_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // designationopt initializer
             MATCH_DESIGNATION | MF_OPTIONAL,
             MATCH_INITIALIZER,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // initializer-list , designationopt initializer
+        [TYPE_B] = (static_subrule_t){       // initializer-list , designationopt initializer
             MATCH_INITIALIZER_LIST,
             UTOKEN_COMMA | MF_UTOKEN,
             MATCH_DESIGNATION | MF_OPTIONAL,
@@ -1280,8 +1389,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // designation
-    [MATCH_DESIGNATION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // designator-list =
+    [MATCH_DESIGNATION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // designator-list =
             MATCH_DESIGNATOR_LIST,
             UTOKEN_ASSIGN | MF_UTOKEN,
             NULL,
@@ -1290,12 +1399,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // designator-list
-    [MATCH_DESIGNATOR_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // designator
+    [MATCH_DESIGNATOR_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // designator
             MATCH_DESIGNATOR,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // designator-list designator
+        [TYPE_B] = (static_subrule_t){       // designator-list designator
             MATCH_DESIGNATOR_LIST,
             MATCH_DESIGNATOR,
             NULL,
@@ -1304,14 +1413,14 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // MATCH_DESIGNATOR
-    [MATCH_DESIGNATOR] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // [ constant-expression ]
+    [MATCH_DESIGNATOR] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // [ constant-expression ]
             UTOKEN_L_SBRACKET | MF_UTOKEN,
             MATCH_CONSTANT_EXPRESSION,
             UTOKEN_R_SBRACKET | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // . identifier
+        [TYPE_B] = (static_subrule_t){       // . identifier
             UTOKEN_PERIOD | MF_UTOKEN,
             MATCH_IDENTIFIER,
             NULL,
@@ -1320,8 +1429,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // static_assert-declaration
-    [MATCH_STATIC_ASSERT_DECLARATION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // static_assert ( constant-expression , string-literal ) ;
+    [MATCH_STATIC_ASSERT_DECLARATION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // static_assert ( constant-expression , string-literal ) ;
             MATCH_STATIC_ASSERT,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_CONSTANT_EXPRESSION
@@ -1331,7 +1440,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_SEMICOLON | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // static_assert ( constant-expression ) ;
+        [TYPE_B] = (static_subrule_t){       // static_assert ( constant-expression ) ;
             MATCH_STATIC_ASSERT,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_CONSTANT_EXPRESSION,
@@ -1343,8 +1452,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // attribute-specifier-sequence
-    [MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1352,8 +1461,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // attribute-specifier
-    [MATCH_ATTRIBUTE_SPECIFIER] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_ATTRIBUTE_SPECIFIER] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1361,8 +1470,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // attribute-list
-    [MATCH_ATTRIBUTE_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_ATTRIBUTE_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1370,8 +1479,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // attribute
-    [MATCH_ATTRIBUTE] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_ATTRIBUTE] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1379,8 +1488,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // attribute-token
-    [MATCH_ATTRIBUTE_TOKEN] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_ATTRIBUTE_TOKEN] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1388,8 +1497,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // standard-attribute
-    [MATCH_STANDARD_ATTRIBUTE] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_STANDARD_ATTRIBUTE] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1397,8 +1506,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // attribute-prefixed-token
-    [MATCH_ATTRIBUTE_PREFIX_TOKEN] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_ATTRIBUTE_PREFIX_TOKEN] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1406,8 +1515,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // attribute-prefix
-    [MATCH_ATTRIBUTE_PREFIX] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_ATTRIBUTE_PREFIX] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1415,8 +1524,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // attribute-argument-clause
-    [MATCH_ATTRIBUTE_ARGUMENT_CLAUSE] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_ATTRIBUTE_ARGUMENT_CLAUSE] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1424,16 +1533,16 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // balanced-token-sequence
-    [MATCH_BALANCED_TOKEN_SEQUENCE] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_BALANCED_TOKEN_SEQUENCE] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
         NULL,
     },
     // balanced-token
-    [MATCH_BALANCED_TOKEN] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // !! not yet implemented !!
+    [MATCH_BALANCED_TOKEN] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // !! not yet implemented !!
             MF_NOT_IMPLEMENTED,
             NULL,
         },
@@ -1446,24 +1555,24 @@ static_tree_t c_mtree = (static_tree_t){
     //####################################################
 
     // statement
-    [MATCH_STATEMENT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_LABELED_STATEMENT,   NULL },    // labeled-statement
-        [TYPE_B] = (static_rule_t){ MATCH_UNLABELED_STATEMENT, NULL },    // unlabeled-statement
+    [MATCH_STATEMENT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_LABELED_STATEMENT,   NULL },    // labeled-statement
+        [TYPE_B] = (static_subrule_t){ MATCH_UNLABELED_STATEMENT, NULL },    // unlabeled-statement
         NULL,
     },
 
     // unlabeled-statement
-    [MATCH_UNLABELED_STATEMENT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // expression-statement
+    [MATCH_UNLABELED_STATEMENT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // expression-statement
             MATCH_EXPRESSION_STATEMENT,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // attribute-specifier-sequenceopt primary-block
+        [TYPE_B] = (static_subrule_t){       // attribute-specifier-sequenceopt primary-block
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_PRIMARY_BLOCK,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // attribute-specifier-sequenceopt jump-statement
+        [TYPE_C] = (static_subrule_t){       // attribute-specifier-sequenceopt jump-statement
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_JUMP_STATEMENT,
             NULL,
@@ -1472,35 +1581,35 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // primary-block
-    [MATCH_PRIMARY_BLOCK] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_COMPOUND_STATEMENT,  NULL },    // compound-statement
-        [TYPE_B] = (static_rule_t){ MATCH_SELECTION_STATEMENT, NULL },    // selection-statement
-        [TYPE_C] = (static_rule_t){ MATCH_ITERATION_STATEMENT, NULL },    // iteration-statement
+    [MATCH_PRIMARY_BLOCK] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_COMPOUND_STATEMENT,  NULL },    // compound-statement
+        [TYPE_B] = (static_subrule_t){ MATCH_SELECTION_STATEMENT, NULL },    // selection-statement
+        [TYPE_C] = (static_subrule_t){ MATCH_ITERATION_STATEMENT, NULL },    // iteration-statement
         NULL,
     },
 
     // secondary-block
-    [MATCH_SECONDARY_BLOCK] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_STATEMENT,  NULL },     // statement
+    [MATCH_SECONDARY_BLOCK] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_STATEMENT,  NULL },     // statement
         NULL,
     },
 
     // label
-    [MATCH_LABEL] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // attribute-specifier-sequenceopt identifier :
+    [MATCH_LABEL] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // attribute-specifier-sequenceopt identifier :
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTINOAL,
             MATCH_IDENTIFIER,
             UTOKEN_COLON | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // attribute-specifier-sequenceopt case constant-expression :
+        [TYPE_B] = (static_subrule_t){       // attribute-specifier-sequenceopt case constant-expression :
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTINOAL,
             DTOKEN_CASE | MF_DTOKEN,
             MATCH_CONSTANT_EXPRESSION,
             UTOKEN_COLON | MF_UTOKEN,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // attribute-specifier-sequenceopt default :
+        [TYPE_C] = (static_subrule_t){       // attribute-specifier-sequenceopt default :
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTINOAL,
             DTOKEN_DEFAULT | MF_DTOKEN,
             UTOKEN_COLON | MF_UTOKEN,
@@ -1510,8 +1619,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // labeled-statement
-    [MATCH_LABELED_STATEMENT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // label statement
+    [MATCH_LABELED_STATEMENT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // label statement
             MATCH_LABEL,
             MATCH_STATEMENT,
             NULL,
@@ -1520,8 +1629,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // compound-statement
-    [MATCH_COMPOUND_STATEMENT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // { block-item-listopt }
+    [MATCH_COMPOUND_STATEMENT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // { block-item-listopt }
             UTOKEN_L_CBRACKET | MF_UTOKEN,
             MATCH_BLOCK_ITEM_LIST | MF_OPTIONAL,
             UTOKEN_R_CBRACKET | MF_UTOKEN,
@@ -1531,12 +1640,12 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // block-item-list
-    [MATCH_BLOCK_ITEM_LIST] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // block-item
+    [MATCH_BLOCK_ITEM_LIST] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // block-item
             MATCH_BLOCK_ITEM,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // block-item-list block-item
+        [TYPE_B] = (static_subrule_t){       // block-item-list block-item
             MATCH_BLOCK_ITEM_LIST,
             MATCH_BLOCK_ITEM
             NULL,
@@ -1545,21 +1654,21 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // block-item
-    [MATCH_BLOCK_ITEM] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_DECLARATION,         NULL },    // declaration
-        [TYPE_B] = (static_rule_t){ MATCH_UNLABELED_STATEMENT, NULL },    // unlabeled-statement
-        [TYPE_C] = (static_rule_t){ MATCH_LABEL,               NULL },    // label
+    [MATCH_BLOCK_ITEM] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_DECLARATION,         NULL },    // declaration
+        [TYPE_B] = (static_subrule_t){ MATCH_UNLABELED_STATEMENT, NULL },    // unlabeled-statement
+        [TYPE_C] = (static_subrule_t){ MATCH_LABEL,               NULL },    // label
         NULL,
     },
 
     // expression-statement
-    [MATCH_EXPRESSION_STATEMENT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // expressionopt ;
+    [MATCH_EXPRESSION_STATEMENT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // expressionopt ;
             MATCH_EXPRESSION | MF_OPTIONAL,
             UTOKEN_SEMICOLON | MF_UTOKEN,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // attribute-specifier-sequence expression ;
+        [TYPE_B] = (static_subrule_t){       // attribute-specifier-sequence expression ;
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE,
             MATCH_EXPRESSION,
             UTOKEN_SEMICOLON | MF_UTOKEN,
@@ -1569,8 +1678,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // selection-statement
-    [MATCH_SELECTION_STATEMENT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // if ( expression ) secondary-block
+    [MATCH_SELECTION_STATEMENT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // if ( expression ) secondary-block
             DTOKEN_IF | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_EXPRESSION,
@@ -1578,7 +1687,7 @@ static_tree_t c_mtree = (static_tree_t){
             MATCH_SECONDARY_BLOCK,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // if ( expression ) secondary-block else secondary-block
+        [TYPE_B] = (static_subrule_t){       // if ( expression ) secondary-block else secondary-block
             DTOKEN_IF | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_EXPRESSION,
@@ -1588,7 +1697,7 @@ static_tree_t c_mtree = (static_tree_t){
             MATCH_SECONDARY_BLOCK,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // switch ( expression ) secondary-block
+        [TYPE_C] = (static_subrule_t){       // switch ( expression ) secondary-block
             DTOKEN_SWITCH | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_EXPRESSION,
@@ -1600,8 +1709,8 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // iteration-statement
-    [MATCH_ITERATION_STATEMENT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // while ( expression ) secondary-block
+    [MATCH_ITERATION_STATEMENT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // while ( expression ) secondary-block
             DTOKEN_WHILE | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_EXPRESSION,
@@ -1609,7 +1718,7 @@ static_tree_t c_mtree = (static_tree_t){
             MATCH_SECONDARY_BLOCK,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // do secondary-block while ( expression ) ;
+        [TYPE_B] = (static_subrule_t){       // do secondary-block while ( expression ) ;
             DTOKEN_DO | MF_DTOKEN,
             MATCH_SECONDARY_BLOCK,
             DTOKEN_WHILE | MF_DTOKEN,
@@ -1619,7 +1728,7 @@ static_tree_t c_mtree = (static_tree_t){
             UTOKEN_SEMICOLON | MF_UTOKEN,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){   // for ( expressionopt ; expressionopt ; expressionopt ) secondary-block
+        [TYPE_C] = (static_subrule_t){   // for ( expressionopt ; expressionopt ; expressionopt ) secondary-block
             DTOKEN_FOR | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_EXPRESSION | MF_OPTIONAL,
@@ -1631,7 +1740,7 @@ static_tree_t c_mtree = (static_tree_t){
             MATCH_SECONDARY_BLOCK,
             NULL,
         },
-        [TYPE_D] = (static_rule_t){       // for ( declaration expressionopt ; expressionopt ) secondary-block
+        [TYPE_D] = (static_subrule_t){       // for ( declaration expressionopt ; expressionopt ) secondary-block
             DTOKEN_FOR | MF_DTOKEN,
             UTOKEN_L_RBRACKET | MF_UTOKEN,
             MATCH_DECLARATION,              // declarations end with a semicolon, so still two
@@ -1646,24 +1755,24 @@ static_tree_t c_mtree = (static_tree_t){
     },
 
     // jump-statement
-    [MATCH_JUMP_STATEMENT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // goto identifier ;
+    [MATCH_JUMP_STATEMENT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // goto identifier ;
             DTOKEN_GOTO | MF_DTOKEN,
             MATCH_IDENTIFIER,
             UTOKEN_SEMICOLON | MF_SEMICOLON,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // continue ;
+        [TYPE_B] = (static_subrule_t){       // continue ;
             DTOKEN_CONTINUE | MF_DTOKEN,
             UTOKEN_SEMICOLON | MF_SEMICOLON,
             NULL,
         },
-        [TYPE_C] = (static_rule_t){       // break ;
+        [TYPE_C] = (static_subrule_t){       // break ;
             DTOKEN_BREAK | MF_DTOKEN,
             UTOKEN_SEMICOLON | MF_SEMICOLON,
             NULL,
         },
-        [TYPE_D] = (static_rule_t){       // return expressionopt ;
+        [TYPE_D] = (static_subrule_t){       // return expressionopt ;
             DTOKEN_RETURN | MF_DTOKEN,
             MATCH_EXPRESSION | MF_OPTIONAL,
             UTOKEN_SEMICOLON | MF_SEMICOLON,
@@ -1680,12 +1789,12 @@ static_tree_t c_mtree = (static_tree_t){
             // THIS IS THE PRIME MATCHING RULE
             
     // translation-unit
-    [MATCH_TRANSLATION_UNIT] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // external-declaration
+    [MATCH_TRANSLATION_UNIT] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // external-declaration
             MATCH_EXTERNAL_DECLARATION,
             NULL,
         },
-        [TYPE_B] = (static_rule_t){       // translation-unit external-declaration
+        [TYPE_B] = (static_subrule_t){       // translation-unit external-declaration
             MATCH_TRANSLATION_UNIT,
             MATCH_EXTERNAL_DECLARATION,
             NULL,
@@ -1694,16 +1803,16 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // external-declaration
-    [MATCH_EXTERNAL_DECLARATION] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_FUNCTION_DEFINITION, NULL },    // function-definition
-        [TYPE_B] = (static_rule_t){ MATCH_DECLARATION,         NULL },    // declaration
+    [MATCH_EXTERNAL_DECLARATION] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_FUNCTION_DEFINITION, NULL },    // function-definition
+        [TYPE_B] = (static_subrule_t){ MATCH_DECLARATION,         NULL },    // declaration
         NULL,
     },
     
     // function-definition
-    [MATCH_FUNCTION_DEFINITION] = (static_target_t){
+    [MATCH_FUNCTION_DEFINITION] = (static_rule_t){
                 // attribute-specifier-sequenceopt declaration-specifiers declarator function-body
-        [TYPE_A] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){
             MATCH_ATTRIBUTE_SPECIFIER_SEQUENCE | MF_OPTIONAL,
             MATCH_DECLARATION_SPECIFIERS,
             MATCH_DECLARATOR,
@@ -1714,19 +1823,17 @@ static_tree_t c_mtree = (static_tree_t){
     },
     
     // function-body
-    [MATCH_FUNCTION_BODY] = (static_target_t){
-        [TYPE_A] = (static_rule_t){ MATCH_COMPOUND_STATEMENT, NULL }, // compound-statement
+    [MATCH_FUNCTION_BODY] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){ MATCH_COMPOUND_STATEMENT, NULL }, // compound-statement
         NULL,
     },
-
-    NULL,
 };
 
 
 /*
 
-[MATCH_GENERIC] = (static_target_t){
-        [TYPE_A] = (static_rule_t){       // generic
+[MATCH_GENERIC] = (static_rule_t){
+        [TYPE_A] = (static_subrule_t){       // generic
             MATCH_GENERIC,
             NULL,
         },

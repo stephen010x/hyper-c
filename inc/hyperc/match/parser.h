@@ -127,6 +127,8 @@ enum {
 
     // EXPRESSIONS
     MATCH_PRIMARY_EXPRESSION,
+    //MATCH_POSTFIX_EXPRESSION_ALT,
+    //MATCH_POSTFIX_OPERATOR,
     MATCH_POSTFIX_EXPRESSION,
     MATCH_ARGUMENT_EXPRESSION_LIST,
     MATCH_COMPOUND_LITERAL,
@@ -235,6 +237,7 @@ enum {
     ///////////////////////
     MATCH_RULE_LEN
 };
+typedef match_id_t;
 
 
 
