@@ -11,8 +11,9 @@
 
 #include "utils/macros.h"
 #include "utils/debug.h"
-#include "hyperc/descriptors.h"
+//#include "hyperc/descriptors.h"
 #include "hyperc/lexer.h"
+#include "hyperc/match/lexer.h"
 
 
 
@@ -403,6 +404,9 @@ int tokenize_buffer(token_array_t *restrict array, const char *restrict buff) {
                 return -1;
         }
 
+        // print_token(&token);
+        // printf("\n");
+
         column += token.len;
 
         int newlines = token_count_newlines(&token);
@@ -482,7 +486,7 @@ void printf_wesc(const char *format, ...) {
             printf("\\0x%02x", ci);
 
         else {
-            printf("[special at %d]", ci);
+            printf("\\0x%x", ci);
             fflush(stdout);
             printf(special_chars[ci]);
         }
@@ -495,7 +499,7 @@ void printf_wesc(const char *format, ...) {
 
 void print_token(token_t *token) {
     char str[token->len+1];
-    char *ttypestr;
+    const char *ttypestr;
     // char *format;
 
     // if (false && token->type == TOKEN_WHITESPACE) {
@@ -527,4 +531,3 @@ void print_token(token_t *token) {
     printf_wesc("%s", str); // passes str as argument rather than format so as to not confuse format strings
     //printf("\n");
 }
-

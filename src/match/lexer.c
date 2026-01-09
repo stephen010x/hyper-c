@@ -1,7 +1,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "hyperc/descriptors.h"
+//#include "hyperc/descriptors.h"
+#include "hyperc/match/lexer.h"
 
 
 const bool whitespace_map[256] = {
@@ -106,7 +107,7 @@ const char *const dtokens[DTOKEN_LENGTH] = {
 // or at least make sure nothing that comprises longer operators are in front.
 const char *const utokens[UTOKEN_LENGTH] = {
 
-    [UTOKEN_VARGS]        = "..."
+    [UTOKEN_VARGS]        = "...",
 
     [UTOKEN_R_ARROW]      = "->",
     

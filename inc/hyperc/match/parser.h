@@ -94,6 +94,7 @@
 #define MF_OUT_SHIFT    23
 
 
+// TODO: what was this for again?
 #define OUT_0   (  0<<MF_OUT_SHIFT )
 #define OUT_1   (  1<<MF_OUT_SHIFT )
 #define OUT_2   (  2<<MF_OUT_SHIFT )
@@ -118,12 +119,16 @@
 
 enum {
     //MATCH_END = 0,
-    // use NULL
+    // use NULL or 0
 
     ///////////////////////
     MATCH_IDENTIFIER = 1,
     MATCH_CONSTANT,
     MATCH_STRING_LITERAL,
+    MATCH_WHITESPACE,
+    MATCH_DIRECTIVE,
+    MATCH_COMMENT,
+    MATCH_ENUMERATION_CONSTANT,
 
     // EXPRESSIONS
     MATCH_PRIMARY_EXPRESSION,
@@ -154,7 +159,7 @@ enum {
 
     // DECLARATIONS
     MATCH_DECLARATION,
-    MATCH_DECLARATION_SPECIFIER,
+    MATCH_DECLARATION_SPECIFIERS,
     MATCH_DECLARATION_SPECIFIER,
     MATCH_INIT_DECLARATOR_LIST,
     MATCH_INIT_DECLARATOR,
@@ -237,16 +242,15 @@ enum {
     ///////////////////////
     MATCH_RULE_LEN
 };
-typedef match_id_t;
+typedef uint32_t match_id_t;
 
 
 
 
-extern char *match_rule_str[MATCH_RULE_LEN];
-extern char *match_type_str[TYPE_Z+1];
+extern const char *const match_type_str[TYPE_Z+1];
+extern const char *const match_rule_str[MATCH_RULE_LEN];
 
-
-extern match_tree_t c_mtree;
+extern static_tree_t c_mtree;
 
 
 

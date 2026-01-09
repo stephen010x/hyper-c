@@ -5,6 +5,9 @@
 
 #include <stdlib.h>
 
+#include "utils/macros.h"
+#include "utils/debug.h"
+
 
 
 enum {
@@ -49,6 +52,7 @@ typedef struct {
     token_t *tokens;
     size_t tlen;
     size_t talloc;
+    char *data;
 } token_array_t;
 
 
@@ -58,6 +62,7 @@ typedef struct {
 
 
 extern const char *const token_names[];
+extern const char token_invalid_str[];
 
 
 
@@ -76,11 +81,12 @@ int token_count_newlines(token_t *token);
 
 
 
-__inline__ int token_array_init(token_array_t *array) {
+__inline__ int token_array_init(token_array_t *array, char* data) {
     *array = (token_array_t){
         .tokens = malloc(64*sizeof(token_t)),
         .tlen = 0,
         .talloc = 64,
+        .data = data,
     };
 
     return (array->tokens == NULL);
@@ -89,7 +95,8 @@ __inline__ int token_array_init(token_array_t *array) {
 
 __inline__ void token_array_close(token_array_t *array) {
     free(array->tokens);
-    *array = (token_array_t){0};
+    free(array->data);
+    DEBUG( *array = (token_array_t){0}; );
 }
 
 
@@ -104,9 +111,9 @@ __inline__ token_t *token_array_insert(token_array_t *restrict array, token_t *r
 }
 
 
-__inline__ char *get_token_name(token_t *token) {
+__inline__ const char *get_token_name(token_t *token) {
     if (token->type < 0 || token->type > TOKEN_EOF)
-        return TOKEN_INVALID_STR;
+        return token_invalid_str;
     return token_names[token->type];
 }
 

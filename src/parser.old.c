@@ -1,4 +1,4 @@
-
+#ifdef OLD_CODE_DO_NOT_COMPILE
 
 /*
 
@@ -1049,3 +1049,6 @@ mclass_t mclasses[] = {
     //         },
     //     },
     // },
+
+
+#endif /* #ifdef OLD_CODE_DO_NOT_COMPILE */

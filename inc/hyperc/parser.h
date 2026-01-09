@@ -6,7 +6,8 @@
 
 
 #include <stdint.h>
-
+#include <stdbool.h>
+#include <stddef.h> // not sure why NULL isn't working without this.
 
 
 
@@ -79,7 +80,6 @@ typedef DECAY(static_tree_t) match_tree_t;
 typedef void *(*tget_handler_t)(void *input, int index);
 typedef bool (*tmatch_handler_t)(void *token, uint32_t mid);
 typedef bool (*eof_handler_t)(void *input, int index);
-typedef char *(*ptoken_name_handler_t)(ptoken_t *ptoken, char *buff, int max);
 
 
 
@@ -111,8 +111,8 @@ enum {
 };
 
 
-typedef struct ptoken_t;
-typedef struct {
+struct _ptoken;
+typedef struct _ptoken {
     uint32_t type;
     union {
         struct {
@@ -124,13 +124,15 @@ typedef struct {
             int targetid;
             int ruleid;
             int count;
-            ptoken_t **children;
+            struct _ptoken **children;
         } match;
     };
 } ptoken_t;
 
 
 
+//typedef char *(*ptoken_name_handler_t)(ptoken_t *ptoken, char *buff, int max);
+typedef char *(*ptoken_name_handler_t)(ptoken_t *ptoken);
 
 
 
@@ -140,7 +142,7 @@ typedef struct {
     union {
         int index; // points to end of stack, not last item of stack
         int length;
-    }
+    };
     int alloc;
     ptoken_t **data;
 } pstack_t;

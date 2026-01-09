@@ -25,7 +25,8 @@
 // =========================================
 // ========= FUNCTION ATTRIBUTES ===========
 // force inline
-#define __force_inline  static inline __attribute__((always_inline))
+//#define __force_inline  static inline __attribute__((always_inline))
+#define __force_inline __attribute__((always_inline)) static inline
 //#define __inline   __force_inline
 #define __inline__ __force_inline
 
@@ -154,7 +155,7 @@
 #define MEMBER_TYPE(__type, __memberpath) typeof(TYPE_NULL(__type).__memberpath)
 
 
-#define crash() do {((void(*)(void))NULL)()} while(0)
+#define crash() do {((void(*)(void))NULL)();} while(0)
 #define segfault() crash()
 
 

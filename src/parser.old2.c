@@ -1,3 +1,6 @@
+#ifdef OLD_CODE_DO_NOT_COMPILE
+
+
 // parser.c
 
 #include <stdint.h>
@@ -386,3 +389,4 @@ void *match(match_t *m, match_rule_t rule, void *input, int in_len) {
 
 
 
+#endif /* #ifdef OLD_CODE_DO_NOT_COMPILE */

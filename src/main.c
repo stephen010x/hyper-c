@@ -4,6 +4,8 @@
 #include <string.h>
 
 //#include "utils/macros.h"
+#include "utils/macros.h"
+#include "hyperc/test.h"
 #include "hyperc.h"
 
 

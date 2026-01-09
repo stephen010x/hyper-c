@@ -7,25 +7,17 @@
 #include "utils/macros.h"
 #include "utils/debug.h"
 #include "hyperc/parser.h"
-
-
-
-#ifdef __DEBUG__
-
-
-
-
-
-
-#include "hyperc/lexer.h"
-#include "hyperc/match/lexer.h"
 #include "hyperc/match/parser.h"
 
 
 
-
-
-#endif /* #ifdef __DEBUG__ */
+// #ifdef __DEBUG__
+// 
+// #include "hyperc/lexer.h"
+// #include "hyperc/match/lexer.h"
+// #include "hyperc/match/parser.h"
+// 
+// #endif /* #ifdef __DEBUG__ */
 
 
 
@@ -36,21 +28,21 @@
 
 // TODO rename to new_token
 ptoken_t *ptoken_new_user(int tindex, void *token) {
-    ptoken_t *token = malloc(sizeof(ptoken));
-    if (token != NULL)
-        *token = (ptoken_t){
+    ptoken_t *ptoken = malloc(sizeof(ptoken_t));
+    if (ptoken != NULL)
+        *ptoken = (ptoken_t){
             .type = PFLAG_USER,
             .user.tindex = tindex,
             .user.token = token,
         };
-    return token;
+    return ptoken;
 }
 
 
 
 // assume the children are detached, and we can directly inherit the list
 ptoken_t *ptoken_new_match(int tid, int rid, int count, ptoken_t **children) {
-    ptoken_t *token = malloc(sizeof(ptoken));
+    ptoken_t *token = malloc(sizeof(ptoken_t));
 
     if (token != NULL) {
         *token = (ptoken_t){
@@ -73,7 +65,8 @@ ptoken_t *ptoken_new_match(int tid, int rid, int count, ptoken_t **children) {
 
 
 void ptoken_free(ptoken_t *token) {
-    switch (token->flags) {
+    switch (token->type) {
+    
         case PFLAG_MATCH:
             for (int i = 0; i < token->match.count; i++) {
                 ptoken_free(token->match.children[i]);
@@ -81,9 +74,13 @@ void ptoken_free(ptoken_t *token) {
             }
             free(token->match.children);
             DEBUG(token->match.children = NULL;);
+            free(token);
+            break;
+            
         case PFLAG_USER:
             free(token);
             break;
+            
         default:
             segfault();
     }
@@ -95,7 +92,8 @@ void ptoken_free(ptoken_t *token) {
 // recursive
 void _print_ptoken(ptoken_t *token, ptoken_name_handler_t print_handler, int depth) {
     for (int i = 0; i < depth; i++)
-        (i % 2) ? printf("|") : printf(" ");
+        //(i % 2) ? printf("|") : printf(" ");
+        printf("  | ");
 
     switch (token->type) {
         case PFLAG_USER:
@@ -105,11 +103,10 @@ void _print_ptoken(ptoken_t *token, ptoken_name_handler_t print_handler, int dep
             break;
             
         case PFLAG_MATCH:
-            printf("MATCH ");
             print_handler(token);
             printf("\n");
             for (int i = 0; i < token->match.count; i++)
-                _print_ptoken(token->match.children[i], handler, depth+1);
+                _print_ptoken(token->match.children[i], print_handler, depth+1);
             break;
 
         default:
@@ -139,7 +136,7 @@ void print_ptoken(ptoken_t *token, ptoken_name_handler_t handler) {
 
 
 int pstack_init(pstack_t *stack) {
-    *stack = {
+    *stack = (pstack_t){
         .index = 0,
         .alloc = 16,
         .data = malloc(16 * sizeof(void*)),
@@ -153,12 +150,12 @@ int pstack_init(pstack_t *stack) {
 
 void pstack_free(pstack_t *stack) {
     for (; stack->index > 0; stack->index--) {
-        ptoken_free(stack->data[index-1]);
-        DEBUG(stack->data[index-1] = NULL;);
+        ptoken_free(stack->data[stack->index-1]);
+        DEBUG(stack->data[stack->index-1] = NULL;);
     }
     free(stack->data);
     DEBUG(
-        *stack = {0};
+        *stack =(pstack_t) {0};
     );
 }
 
@@ -166,7 +163,7 @@ void pstack_free(pstack_t *stack) {
 void pstack_push(pstack_t *stack, ptoken_t *token) {
     if (stack->index >= stack->alloc) {
         stack->alloc *= GOLDEN_ALLOC_MULT;
-        stack->data = realloc(stack->data, stack->alloc * sizeof(void*))
+        stack->data = realloc(stack->data, stack->alloc * sizeof(void*));
     }
 
     stack->data[stack->index++] = token;
@@ -185,7 +182,7 @@ ptoken_t **pstack_pop(pstack_t *stack, int count) {
     group = malloc(count * sizeof(void*));
 
     for (;count > 0; count--)
-        group[i] = stack->data[--stack->index];
+        group[count-1] = stack->data[--stack->index];
 
     return group;
 }
@@ -193,14 +190,14 @@ ptoken_t **pstack_pop(pstack_t *stack, int count) {
 
 // moves pstack data into a ptoken
 ptoken_t *pstack_to_ptoken(pstack_t *stack) {
-    ptoken_t ret;
+    ptoken_t *ret;
 
     if (stack->length == 0)
         ret = NULL;
     if (stack->length == 1)
         ret = stack->data[0];
     else
-        ret = ptoken_new_match(0, 0, 0, stack->length, stack->data);
+        ret = ptoken_new_match(0, 0, stack->length, stack->data);
         
     //free(stack->data);
     // this needs to be here in case someone calls free on this pstack
@@ -208,6 +205,13 @@ ptoken_t *pstack_to_ptoken(pstack_t *stack) {
     stack->data = NULL;
     
     return ret;
+}
+
+
+void print_pstack(pstack_t *stack, ptoken_name_handler_t print_handler) {
+    printf("STACK\n");
+    for (int i = 0; i < stack->index; i++)
+        _print_ptoken(stack->data[i], print_handler, 1);
 }
 
 
@@ -230,11 +234,28 @@ without the need for user input. So I just need a match handler
 */
 
 
+
+
+
+// TODO: comment this out. for debugging
+char *test_ptoken_name_handler(ptoken_t *ptoken);
+
+
+
+// TODO: move this to the macros file
+#define XOR(__a, __b) (!(__a) ^ !(__b))
+
+
+
 // this is a bottom-up parser
 ptoken_t *match(match_t *m, int rule, void *input) {
     pstack_t stack;
     match_tree_t tree = m->tree;
     //bool is_eof = false;
+
+    // an artifact of the original top-down parser
+    // can maybe be used to detect error.
+    (void)rule;
 
     // create the stack
     pstack_init(&stack);
@@ -246,10 +267,10 @@ ptoken_t *match(match_t *m, int rule, void *input) {
     for (int index = 0;; index++) {
         //void *in;
         ptoken_t *token;
-        bool matchflag = false;
+        bool matchflag;
 
         // abort if next token is eof
-        if (m->eof_handler(index) == true)
+        if (m->eof_handler(input, index) == true)
             break;
         
         // push token onto stack
@@ -257,34 +278,40 @@ ptoken_t *match(match_t *m, int rule, void *input) {
         token = ptoken_new_user(index, m->tget_handler(input, index));
         pstack_push(&stack, token);
 
+        //printf("token %d\n", index);
+
+        // TODO: comment this out. for debugging
+        print_pstack(&stack, test_ptoken_name_handler);
+
         // loop until no matches found
         do {
+            matchflag = false;
             //match_target_t *target;
             //int ti;
             
             // check every match rule. If no match, then push token onto the stack
             // loop through every match target
             //for (target = m->tree; *target != NULL; target++) {
-            for (int ti = 0; tree[ti] != NULL; ti++) {
+            for (int ti = 1; tree[ti] != NULL; ti++) {
                 //match_rule_t *rule;
                 
                 // if unimplemented, then continue to next target
-                if (tree[ti][0][0] & MF_NOT_IMPLEMENTED)
+                if (tree[ti][1][0] & MF_NOT_IMPLEMENTED)
                     continue;
                 
                 // loop through every match rule
                 //for (rule = *target; *rule != NULL; rule++) {
-                for (int ri = 0; tree[ti][ri] != NULL; ri++) {
+                for (int ri = TYPE_A; tree[ti][ri] != NULL; ri++) {
                     int end, i, j;
-                    bool ismatch;
+                    bool ismatch = false;
                     
                     // get length of subrule
                     // TODO: optimize this so we dont have to count each time
-                    for (end = 0; tree[ti][ri][i] != NULL; end++);
+                    for (end = 0; tree[ti][ri][end] != 0; end++);
 
                     // if length of subrule exceeds stack index, then continue to
                     //     next rule
-                    if (end > stack->index)
+                    if (end > stack.index)
                         continue;
                     
                     // loop through every match subrule until mismatch found
@@ -296,14 +323,16 @@ ptoken_t *match(match_t *m, int rule, void *input) {
                         ptoken_t *stoken;
 
                         mid = tree[ti][ri][end-i];
-                        stoken = stack->data[stack->index - j];
+                        stoken = stack.data[stack.index - j];
                         
-                        if (rmid & MF_UNRES_MASK) {
-                            ismatch = m->tmatch_handler(stoken->user.token, mid);
+                        if (mid & MF_UNRES_MASK) {
+                            // match only if he stoken type is a user type
+                            if (stoken->type == PFLAG_USER)
+                                ismatch = m->tmatch_handler(stoken->user.token, mid);
 
                         } else {
                             // match if stoken mid is equal to the rule mid
-                            ismatch = (stoken->match.targetid == (mid & MF_MATCH_MASK));
+                            ismatch = ((uint32_t)stoken->match.targetid == (mid & MF_MATCH_MASK));
                         }
 
                         // if  optional and  ismatch, then increment both and no abort
@@ -311,10 +340,14 @@ ptoken_t *match(match_t *m, int rule, void *input) {
                         // if  optional and !ismatch, then increment i    and no abort
                         // if !optional and !ismatch, then abort
 
-                        if (ismatch)
+                        // TODO: this will fail if a rule is solely optional subrules.
+                        if (ismatch) {
+                            printf("match (t=%d r=%d i=%d j=%d)\n", ti, ri, i, j);
                             j++;
-                        else if (!(mid & MF_OPTIONAL))
+                        } else if (!(mid & MF_OPTIONAL)) {
+                            printf("nomatch (t=%d r=%d i=%d j=%d)\n", ti, ri, i, j);
                             break;
+                        }
                     }
 
                     // if the subrule loop breaks with ismatch = true, then reduce stack
@@ -322,6 +355,8 @@ ptoken_t *match(match_t *m, int rule, void *input) {
                     if (ismatch) {
                         ptoken_t **group;
                         ptoken_t *newtoken;
+
+                        matchflag = true;
                     
                         // pop stack into group equal to the length of the rule (end)
                         group = pstack_pop(&stack, end);
@@ -331,13 +366,17 @@ ptoken_t *match(match_t *m, int rule, void *input) {
                         
                         // push new group token into stack
                         pstack_push(&stack, newtoken);
-                        
+
+                        // TODO: comment this out. for debugging
+                        print_pstack(&stack, test_ptoken_name_handler);
+
                         goto _exit_target_loop;
                     }
                 }
             }
             _exit_target_loop:
-            
+
+        // exit the loop once there are no matches
         } while (matchflag == true);
     }
 

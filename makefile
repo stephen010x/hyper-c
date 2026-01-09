@@ -1,6 +1,6 @@
 
 
-TEST_CMD := ./bin/hyper --test ./src/lexer.c ./bin/test.c
+TEST_CMD := ./bin/hyper --test ./src/lexer.c ./bin/test
 
 
 all:

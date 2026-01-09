@@ -1,3 +1,4 @@
+#ifdef OLD_CODE_DO_NOT_COMPILE
 
 
 /*
@@ -1995,3 +1996,6 @@ const char *const match_rule_str[MATCH_RULE_LEN] = {
     [MATCH_FUNCTION_DEFINITION]         = "MATCH_FUNCTION_DEFINITION",
     [MATCH_FUNCTION_BODY]               = "MATCH_FUNCTION_BODY",
 };
+
+
+#endif /* #ifdef OLD_CODE_DO_NOT_COMPILE */

@@ -6,14 +6,16 @@
 //#include "hyperc/debug.h"
 //#include "hyperc/descriptors.h"
 
-#include "utils/debug.h"
-#include "utils/macros.h"
-#include "hyperc/lexer.h"
-#include "hyperc/parser.h"
-#include "hyperc/output.h"
-#include "hyperc/match/lexer.h"
-#include "hyperc/match/parser.h"
-#include "hyperc/test.h"
+// Just include these individually as needed
+// it isn't like this is a library
+// #include "utils/debug.h"
+// #include "utils/macros.h"
+// #include "hyperc/lexer.h"
+// #include "hyperc/parser.h"
+// #include "hyperc/output.h"
+// #include "hyperc/match/lexer.h"
+// #include "hyperc/match/parser.h"
+// #include "hyperc/test.h"
 
 
 

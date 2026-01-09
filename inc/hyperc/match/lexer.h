@@ -89,9 +89,9 @@ typedef int dtoken_id_t;
 
 enum {
 
-    UTOKEN_ARROW = 0,
+    UTOKEN_VARGS = 0,
 
-    UTOKEN_VARGS,
+    UTOKEN_R_ARROW,
 
     UTOKEN_LOR,
     UTOKEN_LAND,
