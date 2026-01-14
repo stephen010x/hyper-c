@@ -520,4 +520,12 @@ Alright then, what is the simplest version of this, and then maybe figure out op
 I suppose it would be to have a recursion budget, where we iterate through a target match and incrementing the budget once every no-match until a match is found, or it is determined that no match is possible.
 Once a match is found, it's parent is then the new prime target, and we do a budget recursion from that point until we either complete the entire match or we determine that there is no match, and receed. Matches will add to the stack while prime target failures will revert the stack to before it was selected as a prime target.
 
+
+Lets go back to the original idea... again...
+Lets pretend there is no recursion, for now. 
+We start at the prime target, and then start recursing downwards.
+What happens when a match exceeds the number of tokens in the stack?
+I am thinking the most optimal solution, if possible, is to neither restart the top nor the bottom.
+
+
 */
