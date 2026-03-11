@@ -13,6 +13,9 @@ clean:
 	rm -rf tmp
 	rm -rf bin
 
+cleanlibs:
+	make -C lib/LuaJIT/ clean
+
 test:
 	#./bin/hyper --test ./test/main.c ./bin/test.c
 	$(TEST_CMD)
@@ -21,4 +24,4 @@ gdb:
 	gdb --args $(TEST_CMD)
 
 
-.PHONY: all clean test gdb
+.PHONY: all clean cleanlibs test gdb
