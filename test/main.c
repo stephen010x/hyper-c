@@ -9,6 +9,8 @@
 
 int main() {
 
+    /* hello world */
+
     /*
     unsigned short _Vector3 v1 = {1, 2, 3};
     unsigned short _Vector3 v2 = {4, 5, 6};

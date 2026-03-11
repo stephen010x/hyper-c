@@ -85,7 +85,7 @@ local function cmd(command, is_print)
     local ok, stat = handle:close()
     -- remove trailing newline if it exists
     if out:sub(-1) == '\n' then out = out:sub(1, -2) end
-    return out
+    return ok, out
 end
 
 module.cmd = cmd
@@ -175,7 +175,7 @@ local fs
 fs = {
     ls = function(path)
         if path == nil then path = "." end
-        local files = cmd("ls -1 --color=never \""..path.."\""):split('\n', true)
+        local ok, files = cmd("ls -1 --color=never \""..path.."\""):split('\n', true)
         for key, value in pairs(files) do
             files[key] = './'..fs.get_nearpath(path..'/'..value)
         end
@@ -184,7 +184,8 @@ fs = {
     
     cd = function(path)
         if path == nil then path = "~" end
-        return cmd("cd \""..path.."\"")
+        local ok, out = cmd("cd \""..path.."\"")
+        return out
     end,
 
     -- rm = function(path, opts)
@@ -192,24 +193,25 @@ fs = {
     -- end,
 
     pwd = function()
-        return cmd("pwd -P")
+        local ok, out = cmd("pwd -P")
+        return out
     end,
 
     mkdir = function(path, opts)
         if opts == nil then opts = "" end
-        cmd ("mkdir "..opts.." "..path)
+        cmd("mkdir "..opts.." "..path)
     end,
 
     get_type = function(path)
-        return cmd("file -b \""..path.."\"")
+        return select(2, cmd("file -b \""..path.."\""))
     end,
 
     get_fullpath = function(path)
-        return cmd("realpath --canonicalize-missing \""..path.."\"")
+        return select(2, cmd("realpath --canonicalize-missing \""..path.."\""))
     end,
 
     get_dir = function(path)
-        return cmd("dirname -- "..path)
+        return select(2, cmd("dirname -- "..path))
     end,
 
     -- get file extension from name
@@ -222,7 +224,7 @@ fs = {
     end,
 
     get_name = function(path)
-        return cmd("basename \""..path.."\"")
+        return select(2, cmd("basename \""..path.."\""))
     end,
 
     set_ext = function(names, ext)
@@ -243,19 +245,19 @@ fs = {
     -- returns path relative to base
     get_nearpath = function(path, base)
         if base == nil then base = '.' end
-        return cmd("realpath --relative-to=\""..base.."\" \""..path.."\"")
+        return select(2, cmd("realpath --relative-to=\""..base.."\" \""..path.."\""))
     end,
 
     get_time = function(path)
-        return tonumber(cmd("stat -c %Y "..path.." 2>/dev/null"))
+        return tonumber(select(2, cmd("stat -c %Y "..path.." 2>/dev/null")))
     end,
 
     is_dir = function(path)
-        return cmd("[ -d \""..path.."\" ] && echo 1") == "1"
+        return select(2, cmd("[ -d \""..path.."\" ] && echo 1") == "1")
     end,
 
     is_exist = function(path)
-        return cmd("[ -e \""..path.."\" ] && echo 1") == "1"
+        return select(2, cmd("[ -e \""..path.."\" ] && echo 1") == "1")
     end,
 
     --is_ext = function(path, ext) end
@@ -363,7 +365,8 @@ module.filter = filter
 
 module.newtree = function()
     return {
-    
+
+        -- forces full paths and relatives paths to behave as the same key
         targets = setmetatable({}, {
         
             __index = function(self, key)
@@ -418,9 +421,12 @@ module.newtree = function()
                 end
             end
 
+            -- build target
             if should_rebuild then
-                if is_verbose then print('rebuilding: '..target) end
-                ttarg.builder(target, ttarg.depends, ttarg.options)
+                if is_verbose then print('building: '..target) end
+                ok = ttarg.builder(target, ttarg.sources, ttarg.options)
+                --ok = ttarg.builder(target, ttarg.depends, ttarg.options)
+                if not ok then return false
             elseif is_verbose then print('skipping:   '..target) end
 
             return true
@@ -436,7 +442,7 @@ local gcc = {}
 
 -- return header dependancies
 gcc.gen_dep = function(file, opts)
-    local str = cmd("gcc "..file.." -MM "..opts)
+    local ok, str = cmd("gcc "..file.." -MM "..opts)
     str = str:split(":")[2]
     str = str:gsub("\n", " ")
     str = str:gsub("\\", " ")
@@ -463,12 +469,56 @@ gcc.builder = function(outpath, infiles, opts)
     -- make sure output directory exists
     fs.mkdir(fs.get_dir(outpath), "-p")
     -- compile
+    --local infiles_str = table.concat(gcc.filter_headers(infiles), ' ')
     local infiles_str = table.concat(gcc.filter_headers(infiles), ' ')
-    cmd(("gcc -o %s %s %s"):format(outpath, infiles_str, opts), true)
+    local ok, _ = cmd(("gcc -o %s %s %s"):format(outpath, infiles_str, opts), true)
+    return ok
 end
 
 
 module.gcc = gcc
+
+
+
+
+
+
+
+
+local make = {}
+
+--                      target, sources, options
+make.builder = function(target, makepath, opts)
+    -- TODO should I just throw actual errors instead?
+    if #sources > 1 then printf("ERROR make.builder, more than one source"); return end
+    local makedir = fs.get_dir(makepath[1])
+    -- run make
+    local ok, _ = cmd(("make -C %s -f %s %s %s"):format(makedir, makepath[1], opts, target), true)
+    return ok
+end
+
+
+module.make = make
+
+
+
+
+
+
+
+
+local luajit = {}
+
+luajit.builder = function(target, sources, opts)
+    if #sources > 1 then printf("ERROR luajit.builder, more than one source"); return false end
+    local makedir = fs.get_dir(sources[1])
+    -- run make
+    local ok, _ = cmd(("luajit -b %s %s %s"):format(opts, sources[1], target), true)
+    return ok
+end
+
+
+module.luajit = luajit
 
 
 
