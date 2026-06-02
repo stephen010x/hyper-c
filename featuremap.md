@@ -1,5 +1,7 @@
-
-
+TODO:
+- Consider having break break out of scopes
+- Do away with input assemblers, and have programmers write their own compute shaders
+    and just have some default "prebuilts" that are secretly just those input assemblers
 
 
 =====================================

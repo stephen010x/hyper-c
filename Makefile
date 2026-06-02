@@ -24,4 +24,8 @@ gdb:
 	gdb --args $(TEST_CMD)
 
 
-.PHONY: all clean cleanlibs test gdb
+pull-submodules:
+	git submodule update --init --recursive
+
+
+.PHONY: all clean cleanlibs test gdb pull-submodules

@@ -21,6 +21,8 @@ local type, assert = type, assert
 local format = string.format
 local tremove, tconcat = table.remove, table.concat
 
+math.randomseed(os.time())
+
 ------------------------------------------------------------------------------
 
 local function usage()
@@ -32,12 +34,14 @@ Save LuaJIT bytecode: luajit -b[options] input output
   -W        Generate 32 bit (non-GC64) bytecode.
   -X        Generate 64 bit (GC64) bytecode.
   -d        Generate bytecode in deterministic manner.
+  -h        Generate header file for C, C++, or object files.
   -n name   Set module name (default: auto-detect from input name).
   -t type   Set output file type (default: auto-detect from output name).
   -a arch   Override architecture for object files (default: native).
   -o os     Override OS for object files (default: native).
   -F name   Override filename (default: input filename).
   -e chunk  Use chunk string as input.
+  -H path   Generate header file at path for C, C++, or object files.
   --        Stop handling options.
   -         Use stdin as input and/or stdout as output.
 
@@ -161,20 +165,30 @@ local function bcsave_c(ctx, output, s)
   if ctx.type == "c" then
     fp:write(format([[
 #ifdef __cplusplus
-extern "C"
+extern "C" {
 #endif
 #ifdef _WIN32
-__declspec(dllexport)
+#define _LJBC_EXPORT __declspec(dllexport)
 #elif (defined(__ELF__) || defined(__MACH__) || defined(__psp2__)) && !((defined(__sun__) && defined(__svr4__)) || defined(__CELLOS_LV2__))
-__attribute__((visibility("default")))
+#define _LJBC_EXPORT __attribute__((visibility("default")))
+#else
+#define _LJBC_EXPORT
 #endif
-const unsigned char %s%s[] = {
-]], LJBC_PREFIX, ctx.modname))
+#ifdef _INCLUDE_%ssize
+_LJBC_EXPORT const unsigned long %s%s_size = %d;
+#endif
+_LJBC_EXPORT const unsigned char %s%s[] = {
+]], LJBC_PREFIX, LJBC_PREFIX, ctx.modname, #s, LJBC_PREFIX, ctx.modname))
   else
+    local hr = math.random(0x10000000, 0xFFFFFFFF)
+    local hstr = format("__%s%s_%x_%x", LJBC_PREFIX, ctx.modname, os.time(), hr)
     fp:write(format([[
+#ifndef %s
+#define %s
 #define %s%s_SIZE %d
+#ifndef _EXCLUDE_%sdata
 static const unsigned char %s%s[] = {
-]], LJBC_PREFIX, ctx.modname, #s, LJBC_PREFIX, ctx.modname))
+]], hstr, hstr, LJBC_PREFIX, ctx.modname, #s, LJBC_PREFIX, LJBC_PREFIX, ctx.modname))
   end
   local t, n, m = {}, 0, 0
   for i=1,#s do
@@ -187,7 +201,28 @@ static const unsigned char %s%s[] = {
     n = n + 1
     t[n] = b
   end
-  bcsave_tail(fp, output, tconcat(t, ",", 1, n).."\n};\n")
+  fp:write(tconcat(t, ",", 1, n).."\n};\n")
+  bcsave_tail(fp, output, ctx.type == "h" and "#endif\n#endif\n" or "#ifdef __cplusplus\n}\n#endif\n")
+end
+
+local function bcsave_h(ctx, output, s)
+  local fp = savefile(output, "w")
+  local hr = math.random(0x10000000, 0xFFFFFFFF)
+  local hstr = format("__%s%s_%x_%x", LJBC_PREFIX, ctx.modname, os.time(), hr)
+  bcsave_tail(fp, output, format([[
+#ifndef %s
+#define %s
+#define %s%s_SIZE %d
+#ifdef _INCLUDE_%ssize
+#ifdef __cplusplus
+extern "C"
+#endif
+#ifdef _INCLUDE_%ssize
+extern const unsigned long %s%s_size;
+#endif
+#endif
+#endif
+]], hstr, hstr, LJBC_PREFIX, ctx.modname, #s, LJBC_PREFIX, LJBC_PREFIX, LJBC_PREFIX, ctx.modname))
 end
 
 local function bcsave_elfobj(ctx, output, s, ffi)
@@ -555,10 +590,18 @@ local function bcsave(ctx, input, output)
     t = detecttype(output)
     ctx.type = t
   end
+  if ctx.header == true and output ~= "-" then
+    ctx.header = detectmodname(output)..".h"
+  else
+    ctx.header = nil
+  end
   if t == "raw" then
     bcsave_raw(output, s)
   else
     if not ctx.modname then ctx.modname = detectmodname(input) end
+    if ctx.header then
+      bcsave_h(ctx, ctx.header, s)
+    end
     if t == "obj" then
       bcsave_obj(ctx, output, s)
     else
@@ -583,36 +626,40 @@ local function docmd(...)
       tremove(arg, n)
       if a == "--" then break end
       for m=2,#a do
-	local opt = a:sub(m, m)
-	if opt == "l" then
-	  list = true
-	elseif opt == "s" then
-	  strip = "s"
-	elseif opt == "g" then
-	  strip = ""
-	elseif opt == "W" or opt == "X" then
-	  gc64 = opt
-	elseif opt == "d" then
-	  ctx.mode = ctx.mode .. opt
-	else
-	  if arg[n] == nil or m ~= #a then usage() end
-	  if opt == "e" then
-	    if n ~= 1 then usage() end
-	    ctx.string = true
-	  elseif opt == "n" then
-	    ctx.modname = checkmodname(tremove(arg, n))
-	  elseif opt == "t" then
-	    ctx.type = checkarg(tremove(arg, n), map_type, "file type")
-	  elseif opt == "a" then
-	    ctx.arch = checkarg(tremove(arg, n), map_arch, "architecture")
-	  elseif opt == "o" then
-	    ctx.os = checkarg(tremove(arg, n), map_os, "OS name")
-	  elseif opt == "F" then
-	    ctx.filename = "@"..tremove(arg, n)
-	  else
-	    usage()
-	  end
-	end
+    local opt = a:sub(m, m)
+    if opt == "l" then
+      list = true
+    elseif opt == "s" then
+      strip = "s"
+    elseif opt == "g" then
+      strip = ""
+    elseif opt == "W" or opt == "X" then
+      gc64 = opt
+    elseif opt == "d" then
+      ctx.mode = ctx.mode .. opt
+    elseif opt == "h" then
+      ctx.header = true
+    else
+      if arg[n] == nil or m ~= #a then usage() end
+      if opt == "e" then
+        if n ~= 1 then usage() end
+        ctx.string = true
+      elseif opt == "n" then
+        ctx.modname = checkmodname(tremove(arg, n))
+      elseif opt == "t" then
+        ctx.type = checkarg(tremove(arg, n), map_type, "file type")
+      elseif opt == "a" then
+        ctx.arch = checkarg(tremove(arg, n), map_arch, "architecture")
+      elseif opt == "o" then
+        ctx.os = checkarg(tremove(arg, n), map_os, "OS name")
+      elseif opt == "F" then
+        ctx.filename = "@"..tremove(arg, n)
+      elseif opt == "H" then
+        ctx.header = tremove(arg, n)
+      else
+        usage()
+      end
+    end
       end
     else
       n = n + 1

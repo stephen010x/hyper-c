@@ -1,4 +1,5 @@
 #!/usr/bin/env lua
+
 -- make.lua [goal]
 -- arg[0] = script name, arg[1]..arg[n] = args, #arg = count
 local build = require "buildtree"
@@ -7,6 +8,7 @@ local cmd = build.cmd
 local filter = build.filter
 local enum, ext, type = build.enum, build.ext, build.type
 local debug = build.debug
+local this = arg[0]
 
 
 local is_verbose = false
@@ -16,6 +18,9 @@ local is_show_tree = false
 local system = enum.linux
 local cc = build.gcc
 local make = build.make
+local luajit = build.luajit
+local copy = build.copy
+table = build.table
 
 
 goals.default = 'debug'
@@ -25,11 +30,14 @@ local goal = arg[1] or goals.default
 
 local outname = "hyper"
 
+local luabc_c_path = dir.src .. "/luabc.c"
+
 
 local dir = {
     src = "src/",
     tmp = "tmp/",
-    inc = "inc/",
+    -- inc = "inc/",
+    inc = "src/",
     bin = "bin/",
     lib = "lib/",
 }
@@ -115,24 +123,53 @@ local jflags = goals[goal].jflags
 function onbuild()
 
 
-    local tmpdir = get_tmpdir(dir.bin .. "/" .. outname)
+    -- local tmpdir = get_tmpdir(dir.bin .. "/" .. outname)
+    local tmpdir = get_tmpdir(outname)
     
     -- generate objects into buildtree
     local   c_objs = gen_c_objs(   c_srcs,   tmpdir, fs.get_dir(dir.src), oflags )
     local lua_objs = gen_lua_objs( lua_srcs, tmpdir, fs.get_dir(dir.src), jflags )
 
 
-    local depends = concat_tables(c_objs, lua_objs, libs)
+    -- local depends = concat_tables(c_objs, lua_objs, libs, this)
+    -- local sources = concat_tables(c_objs, lua_objs, libs)
+    local depends = table.join(c_objs, lua_objs, libs, this)
+    local sources = table.join(c_objs, lua_objs, libs)
 
 
-    buildtree.targets[dir.bin .. "/" .. outname] = {
-        --type = type.elf,
+    -- build to tmp dir
+    buildtree.targets[tmpdir .. "/" .. outname] = {
         builder = cc.builder,
         depends = depends,
-        sources = depends,
+        sources = sources,
         options = xflags,
         force_rebuild = false,
     }
+
+
+    -- copy from executable from tmp to bin
+    buildtree.targets[dir.bin .. "/" .. outname] = {
+        builder = copy.builder
+        depends = {tmpdir .. "/" .. outname},
+        sources = {tmpdir .. "/" .. outname},
+        options = "",
+        force_rebuild = false,
+    }
+
+
+    -- special handling for luabc.c
+    local luabc_c_obj = buildtree:searchby_source(luabc_c_path)[0]
+    local luabc_node = buildtree.targets[luabc_c_obj]
+    
+    luabc_node.depends = table.join(luabc_node.depends, lua_objs)
+    -- creates preproc definitions for bytecode sizes
+    luabc_node.builder = function(target, sources, opts)
+        local opts = {opts}
+        for _, luaobj in ipairs(lua_objs) do
+            table.insert(opts, buildtree[luaobj].get_size_opt())
+        end
+        cc.builder(target, sources, table.concat(opts, " "))
+    end
 
 
     -- run buildtree
@@ -164,16 +201,32 @@ end
 
 
 
-
-local function concat_tables(...)
-    out = {}
-    for _, table in pairs({...}) do
-        for key, value in pairs(table) do
-            out[key] = value
-        end
+local function get_tmp_path(path, tmpdir, refdir, ext, do_append)
+    local nearpath = fs.get_nearpath(path, refdir)
+    if ext == nil then
+        return tmpdir..'/'..nearpath
+    elseif do_append or ext == nil then
+        return tmpdir..'/'..nearpath..'.'..ext
+    else
+        return fs.set_ext(tmpdir..'/'..nearpath, ext)
     end
-    return out
 end
+
+
+
+
+
+
+
+-- local function concat_tables(...)
+--     out = {}
+--     for _, table in pairs({...}) do
+--         for key, value in pairs(table) do
+--             out[key] = value
+--         end
+--     end
+--     return out
+-- end
 
 
 -- function to properly concat flags
@@ -200,19 +253,21 @@ end
 
 
 
-
 -- function to add c objects to build tree
 local function gen_c_objs(srcs, tmpdir, refdir, opts)
     if refdir == nil then refdir = fs.pwd() end
+    if opts == nil then opts = "" end
     
     local objs = {}
 
     -- generate dependancy tree from sources
     for _, cfile in pairs(srcs) do
 
-        local nearpath = fs.get_nearpath(cfile, refdir)
-        local objfile = fs.set_ext(tmpdir..'/'..nearpath, ext.o)
-        local depends = cc.gen_dep(cfile, opts)
+        -- local nearpath = fs.get_nearpath(cfile, refdir)
+        -- local objfile = fs.set_ext(tmpdir..'/'..nearpath, ext.o)
+        -- local depends = concat_tables(cc.gen_dep(cfile, opts), this)
+        local objfile = get_tmp_path(cfile, tmpdir, refdir, ext.o)
+        local depends = table.join(cc.gen_dep(cfile, opts), this)
         
         table.insert(objs, objfile)
     
@@ -236,24 +291,30 @@ end
 -- function to add lua objects to build tree
 local function gen_lua_objs(srcs, tmpdir, refdir, opts)
     if refdir == nil then refdir = fs.pwd() end
+     if opts == nil then opts = "" end
     
     local objs = {}
 
     -- generate dependancy tree from sources
     for _, file in pairs(srcs) do
 
-        local nearpath = fs.get_nearpath(file, refdir)
-        local objfile = fs.set_ext(tmpdir..'/'..nearpath, "lua.o")
+        -- local nearpath = fs.get_nearpath(file, refdir)
+        -- local objfile = fs.set_ext(tmpdir..'/'..nearpath, ext.o)
+        local objfile = get_tmp_path(file, tmpdir, refdir, ext.o, true)
         
         table.insert(objs, objfile)
     
         buildtree.targets[objfile] = {
-            --type = ext.o,
             builder = luajit.builder,
-            depends = {file},
+            depends = {file, this},
             sources = {file},
             options = opts.." -t obj",
             force_rebuild = false,
+            
+            get_size_opt = function()       -- only call this after the lua file is compiled
+                local name, _, _, size = select(2, cmd("nm -f posix "..objfile)).split()
+                return "-D"..name.."_SIZE=0x"..size
+            end
         }
     end
 

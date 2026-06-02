@@ -334,6 +334,7 @@ local pack_punctuator = pack_predefined
 local pack_preprocessing_directive = pack_predefined
 
 
+-- TODO: try to add a way to keep track of line number and column in this
 function pack_token(start, table, stop, type)
     return {
         index  = tonumber(start),
@@ -389,6 +390,14 @@ clex.token = lpeg.P({
               P"/*" * (P(1) - P"*/")^0 * P"*/",
 
 
+    -- -- separate newlines and other whitespace into distinct tokens
+    -- -- so that it doesn't impede on the preprocessing directive
+    -- -- for instance: "   \n\n\n  #  define "
+    -- WHITESPACE = (clex.whitespace - P"\n")^1 + 
+    --              P"\n"^1,
+
+    -- nevermind. It isn't like the whitespace is captured by the
+    -- preprocessing directive anyway
     WHITESPACE = clex.whitespace^1,
 
 
@@ -396,13 +405,12 @@ clex.token = lpeg.P({
     -- will consume any newline preceeded by a backslash '\'
     -- must be preceeded by a newline with optional whitespace
     PREPROCESSING_DIRECTIVE = P"\n" * (clex.whitespace - P"\n")^0 * 
-                                  C(P"#" * ((1 - P"\n") + P"\\\n")) / pack_preprocessing_directive * 
-                                      #P"\n",
+                                  C(P"#" * (clex.whitespace - P"\n")^0 * ((1 - P"\n") + P"\\\n")) / 
+                                      pack_preprocessing_directive * #P"\n",
 
 
 }) --* P(-1) -- matches with the end of the document (read lpeg docs)
            -- it is applied only to the start rule pattern
-
 
 
 

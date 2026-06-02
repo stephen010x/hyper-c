@@ -164,6 +164,20 @@ table.print = debug.print_table
 --     if first < 0
 -- end
 
+-- only works for numeric index tables
+-- all non-numeric keys will be ignored
+table.join = function(...)
+    out = {}
+    for _, table in ipairs({...}) do
+        for _, value in ipairs(table) do
+            table.insert(out, value)
+        end
+    end
+    return out
+end
+
+module.table = table
+
 
 
 
@@ -431,8 +445,23 @@ module.newtree = function()
 
             return true
         end,
+
+
+
+        searchby_source = function(self, source)
+            hits = {}
+            for target, node in pairs(self) do
+                if source in node.sources then
+                    table.append(hits, target)
+                end
+            end
+            return hits
+        end,
+
     }
 end
+
+
 
 
 
@@ -490,7 +519,7 @@ local make = {}
 --                      target, sources, options
 make.builder = function(target, makepath, opts)
     -- TODO should I just throw actual errors instead?
-    if #sources > 1 then printf("ERROR make.builder, more than one source"); return end
+    if #makepath > 1 then printf("ERROR make.builder, more than one source"); return end
     local makedir = fs.get_dir(makepath[1])
     -- run make
     local ok, _ = cmd(("make -C %s -f %s %s %s"):format(makedir, makepath[1], opts, target), true)
@@ -511,14 +540,30 @@ local luajit = {}
 
 luajit.builder = function(target, sources, opts)
     if #sources > 1 then printf("ERROR luajit.builder, more than one source"); return false end
-    local makedir = fs.get_dir(sources[1])
-    -- run make
     local ok, _ = cmd(("luajit -b %s %s %s"):format(opts, sources[1], target), true)
     return ok
 end
 
 
 module.luajit = luajit
+
+
+
+
+
+
+
+
+local copy = {}
+
+copy.builder = function(target, sources, opts)
+    local sources_str = table.concat(sources, ' ')
+    local ok, _ = cmd(("cp %s %s %s"):format(opts, sources[1], target), true)
+    return ok
+end
+
+
+module.copy = copy
 
 
 

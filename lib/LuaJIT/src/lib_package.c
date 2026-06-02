@@ -161,7 +161,7 @@ static const char *ll_bcsym(void *lib, const char *sym)
     HINSTANCE h = GetModuleHandleA(NULL);
     const char *p = (const char *)GetProcAddress(h, sym);
     if (p == NULL && GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-					(const char *)ll_bcsym, &h))
+                    (const char *)ll_bcsym, &h))
       p = (const char *)GetProcAddress(h, sym);
     return p;
 #endif
@@ -224,7 +224,7 @@ static void **ll_register(lua_State *L, const char *path)
 }
 
 static const char *mksymname(lua_State *L, const char *modname,
-			     const char *prefix)
+                 const char *prefix)
 {
   const char *funcname;
   const char *mark = strchr(modname, *LUA_IGMARK);
@@ -260,9 +260,9 @@ static int ll_loadfunc(lua_State *L, const char *path, const char *name, int r)
       const char *bcdata = ll_bcsym(*reg, mksymname(L, name, SYMPREFIX_BC));
       lua_pop(L, 1);
       if (bcdata) {
-	if (luaL_loadbuffer(L, bcdata, ~(size_t)0, name) != 0)
-	  return PACKAGE_ERR_LOAD;
-	return 0;
+    if (luaL_loadbuffer(L, bcdata, ~(size_t)0, name) != 0)
+      return PACKAGE_ERR_LOAD;
+    return 0;
       }
     }
     return PACKAGE_ERR_FUNC;  /* Unable to find function. */
@@ -314,8 +314,8 @@ static const char *pushnexttemplate(lua_State *L, const char *path)
 }
 
 static const char *searchpath (lua_State *L, const char *name,
-			       const char *path, const char *sep,
-			       const char *dirsep)
+                   const char *path, const char *sep,
+                   const char *dirsep)
 {
   luaL_Buffer msg;  /* to build error message */
   luaL_buffinit(L, &msg);
@@ -323,7 +323,7 @@ static const char *searchpath (lua_State *L, const char *name,
     name = luaL_gsub(L, name, sep, dirsep);  /* replace it by 'dirsep' */
   while ((path = pushnexttemplate(L, path)) != NULL) {
     const char *filename = luaL_gsub(L, lua_tostring(L, -1),
-				     LUA_PATH_MARK, name);
+                     LUA_PATH_MARK, name);
     lua_remove(L, -2);  /* remove path template */
     if (readable(filename))  /* does file exist and is readable? */
       return filename;  /* return that file name */
@@ -338,9 +338,9 @@ static const char *searchpath (lua_State *L, const char *name,
 static int lj_cf_package_searchpath(lua_State *L)
 {
   const char *f = searchpath(L, luaL_checkstring(L, 1),
-				luaL_checkstring(L, 2),
-				luaL_optstring(L, 3, "."),
-				luaL_optstring(L, 4, LUA_DIRSEP));
+                luaL_checkstring(L, 2),
+                luaL_optstring(L, 3, "."),
+                luaL_optstring(L, 4, LUA_DIRSEP));
   if (f != NULL) {
     return 1;
   } else {  /* error message is on top of the stack */
@@ -351,7 +351,7 @@ static int lj_cf_package_searchpath(lua_State *L)
 }
 
 static const char *findfile(lua_State *L, const char *name,
-			    const char *pname)
+                const char *pname)
 {
   const char *path;
   lua_getfield(L, LUA_ENVIRONINDEX, pname);
@@ -364,7 +364,7 @@ static const char *findfile(lua_State *L, const char *name,
 static void loaderror(lua_State *L, const char *filename)
 {
   luaL_error(L, "error loading module " LUA_QS " from file " LUA_QS ":\n\t%s",
-	     lua_tostring(L, 1), filename, lua_tostring(L, -1));
+         lua_tostring(L, 1), filename, lua_tostring(L, -1));
 }
 
 static int lj_cf_package_loader_lua(lua_State *L)
@@ -401,7 +401,7 @@ static int lj_cf_package_loader_croot(lua_State *L)
   if ((st = ll_loadfunc(L, filename, name, 0)) != 0) {
     if (st != PACKAGE_ERR_FUNC) loaderror(L, filename);  /* real error */
     lua_pushfstring(L, "\n\tno module " LUA_QS " in file " LUA_QS,
-		    name, filename);
+            name, filename);
     return 1;  /* function not found */
   }
   return 1;
@@ -448,7 +448,7 @@ static int lj_cf_package_require(lua_State *L)
     lua_rawgeti(L, -2, i);  /* get a loader */
     if (lua_isnil(L, -1))
       luaL_error(L, "module " LUA_QS " not found:%s",
-		 name, lua_tostring(L, -2));
+         name, lua_tostring(L, -2));
     lua_pushstring(L, name);
     lua_call(L, 1, 1);  /* call it */
     if (lua_isfunction(L, -1))  /* did it find module? */
@@ -548,7 +548,7 @@ static int lj_cf_package_seeall(lua_State *L)
 #define AUXMARK		"\1"
 
 static void setpath(lua_State *L, const char *fieldname, const char *envname,
-		    const char *def, int noenv)
+            const char *def, int noenv)
 {
 #if LJ_TARGET_CONSOLE
   const char *path = NULL;
@@ -560,7 +560,7 @@ static void setpath(lua_State *L, const char *fieldname, const char *envname,
     lua_pushstring(L, def);
   } else {
     path = luaL_gsub(L, path, LUA_PATHSEP LUA_PATHSEP,
-			      LUA_PATHSEP AUXMARK LUA_PATHSEP);
+                  LUA_PATHSEP AUXMARK LUA_PATHSEP);
     luaL_gsub(L, path, AUXMARK, def);
     lua_remove(L, -2);
   }
