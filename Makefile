@@ -15,6 +15,7 @@ clean:
 
 cleanlibs:
 	make -C lib/LuaJIT/ clean
+	make -C lib/lpeg-1.1.0/ clean
 
 test:
 	#./bin/hyper --test ./test/main.c ./bin/test.c

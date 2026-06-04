@@ -2,13 +2,17 @@
 
 #include <lauxlib.h>
 
-#include "LuaJIT/lua.h"
-#include "LuaJIT/lualib.h"
-#include "LuaJIT/luaxlib.h"
-#include "LuaJIT/luajit.h"
+// #include "LuaJIT/lua.h"
+// #include "LuaJIT/lualib.h"
+// #include "LuaJIT/luaxlib.h"
+// #include "LuaJIT/luajit.h"
+#include "lua.h"
+#include "lualib.h"
+#include "lauxlib.h"
+#include "luajit.h"
 
 
-#include "utils/debug.h"
+#include "toolkit/debug.h"
 #include "lua/luabc.h"
 
 

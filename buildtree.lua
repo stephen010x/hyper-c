@@ -77,19 +77,76 @@ module.type = enum
 
 
 
+-- TODO: make this return stdout, stderr, and errno, as well as accept an stdin.
+-- local function cmd(command, is_print)
+--     if is_print then print(command) end
+--     local handle = io.popen(command)
+--     local out = handle:read("*a")
+--     handle:close()
+--     -- remove trailing newline if it exists
+--     if out:sub(-1) == '\n' then out = out:sub(1, -2) end
+--     return out
+-- end
 
 local function cmd(command, is_print)
-    if is_print then print(command) end
-    local handle = io.popen(command)
-    local out = handle:read("*a")
-    local ok, stat = handle:close()
-    -- remove trailing newline if it exists
-    if out:sub(-1) == '\n' then out = out:sub(1, -2) end
-    return ok, out
+    local stdout, stderr = cmd2(command, nil, is_print)
+    return stdout, stderr == ""
 end
 
 module.cmd = cmd
 
+
+
+
+
+
+local _hstdin  = "/tmp/buildtree_stdin"
+local _hstdout = "/tmp/buildtree_stdout"
+local _hstderr = "/tmp/buildtree_stderr"
+
+
+local function cmd2(command, stdin, is_print)
+    if stdin == nil then stdin = "" end
+    if is_print then print(command) end
+    local fstdin = io.open(_stdin, "w")
+    fstdin:write(stdin)
+    fstdin:close()
+    local handle = io.popen(string.format("cat %s | ( %s ) >%s 2>%s", _stdin, command, _stdout, _stderr))
+    local fstdout = io.open(_stdout, "r")
+    local stdout = fstdout:read("*a")
+    fstdout:close()
+    local fstderr = io.open(_stderr, "r")
+    local stderr = fstderr:read("*a")
+    fstderr:close()
+    -- remove trailing newline if it exists
+    if stdout:sub(-1) == '\n' then stdout = stdout:sub(1, -2) end
+    if stderr:sub(-1) == '\n' then stderr = stderr:sub(1, -2) end
+    return stdout, stderr
+end
+
+module.cmd2 = cmd2
+
+
+
+
+
+
+-- local function pipe(command, stdin, is_print)
+--     if is_print then print("STDIN | "..command) end
+--     local tmp = os.tmpname()
+--     local file = io.open(tmp, "w")
+--     file:write(stdin)
+--     file:close()
+--     local handle = io.popen(string.format("cat %s | %s", tmp, command))
+--     local out = handle:read("*a")
+--     local ok, _ = handle:close()
+--     os.remove(tmp)
+--     -- remove trailing newline if it exists
+--     if out:sub(-1) == '\n' then out = out:sub(1, -2) end
+--     return ok, out
+-- end
+-- 
+-- module.pipe = pipe
 
 
 
@@ -126,14 +183,16 @@ end
 -- strip beginning and end of string of whitespace
 -- adds method to main string metatable
 stringmt.__index.strip = function(self)
-    return self:gsub("^%s+", ""):gsub("%s+$", "")
+    local str = self:gsub("^%s+", ""):gsub("%s+$", "") -- drops second value
+    return str
 end
 
 -- replaces all consecutive whitespace with single spaces
 -- adds method to main string metatable
 stringmt.__index.squeeze = function(self)
     local s = self:gsub("%s+", " ")
-    return s:gsub("^%s+", ""):gsub("%s+$", "")
+    s = s:gsub("^%s+", ""):gsub("%s+$", "") -- drops second value
+    return s
 end
 
 
@@ -168,12 +227,19 @@ table.print = debug.print_table
 -- all non-numeric keys will be ignored
 table.join = function(...)
     out = {}
-    for _, table in ipairs({...}) do
-        for _, value in ipairs(table) do
+    for _, t in ipairs({...}) do
+        for _, value in ipairs(t) do
             table.insert(out, value)
         end
     end
     return out
+end
+
+table.isin = function(table, value)
+    for i, v in ipairs(table) do
+        if v == value then return true, i end
+    end
+    return false, nil
 end
 
 module.table = table
@@ -186,10 +252,11 @@ module.table = table
 local fs
 
 -- linux file system helper
+-- TODO: add more error detection to these
 fs = {
     ls = function(path)
         if path == nil then path = "." end
-        local ok, files = cmd("ls -1 --color=never \""..path.."\""):split('\n', true)
+        local files = cmd("ls -1 --color=never \""..path.."\""):split('\n', true)
         for key, value in pairs(files) do
             files[key] = './'..fs.get_nearpath(path..'/'..value)
         end
@@ -198,8 +265,7 @@ fs = {
     
     cd = function(path)
         if path == nil then path = "~" end
-        local ok, out = cmd("cd \""..path.."\"")
-        return out
+        return cmd("cd \""..path.."\"")
     end,
 
     -- rm = function(path, opts)
@@ -207,25 +273,25 @@ fs = {
     -- end,
 
     pwd = function()
-        local ok, out = cmd("pwd -P")
-        return out
+        return cmd("pwd -P")
     end,
 
+    -- TODO: add error detection
     mkdir = function(path, opts)
         if opts == nil then opts = "" end
         cmd("mkdir "..opts.." "..path)
     end,
 
     get_type = function(path)
-        return select(2, cmd("file -b \""..path.."\""))
+        return cmd("file -b \""..path.."\"")
     end,
 
     get_fullpath = function(path)
-        return select(2, cmd("realpath --canonicalize-missing \""..path.."\""))
+        return cmd("realpath --canonicalize-missing \""..path.."\"")
     end,
 
     get_dir = function(path)
-        return select(2, cmd("dirname -- "..path))
+        return cmd("dirname -- "..path)
     end,
 
     -- get file extension from name
@@ -238,7 +304,7 @@ fs = {
     end,
 
     get_name = function(path)
-        return select(2, cmd("basename \""..path.."\""))
+        return cmd("basename \""..path.."\"")
     end,
 
     set_ext = function(names, ext)
@@ -259,22 +325,40 @@ fs = {
     -- returns path relative to base
     get_nearpath = function(path, base)
         if base == nil then base = '.' end
-        return select(2, cmd("realpath --relative-to=\""..base.."\" \""..path.."\""))
+        return cmd("realpath --relative-to=\""..base.."\" \""..path.."\"")
     end,
 
     get_time = function(path)
-        return tonumber(select(2, cmd("stat -c %Y "..path.." 2>/dev/null")))
+        return tonumber(cmd("stat -c %Y "..path.." 2>/dev/null"))
     end,
 
     is_dir = function(path)
-        return select(2, cmd("[ -d \""..path.."\" ] && echo 1") == "1")
+        return cmd("[ -d \""..path.."\" ] && echo 1") == "1"
     end,
 
     is_exist = function(path)
-        return select(2, cmd("[ -e \""..path.."\" ] && echo 1") == "1")
+        return cmd("[ -e \""..path.."\" ] && echo 1") == "1"
     end,
 
-    --is_ext = function(path, ext) end
+    tidy = function(path)
+        local str = path:gsub("/+", "/") -- drops second value
+        return str
+    end,
+
+    path = function(...)
+        return fs.tidy(table.concat({...}, "/"))
+    end,
+
+    -- output = function(path, data) end,
+    -- append = function(path, data) end,
+    -- delete = function(path, data) end,
+    -- is_ext = function(path, ext) end,
+
+    temp = function(mode)
+        local fname = os.tmpname()
+        local file = io.open(fname, mode or 'a+')
+        return fname, file
+    end,
 }
 
 
@@ -400,9 +484,14 @@ module.newtree = function()
         -- dependancies built or older
         -- btw, targets can be directories
         build = function(self, target, is_verbose)
+            if is_verbose then print('checking: '..target) end
             if is_verbose == nil then is_verbose = false end
 
             local ttarg = self.targets[target]
+
+            if ttarg.depends == nil then ttarg.depends = {} end
+            if ttarg.sources == nil then ttarg.sources = {} end
+            if ttarg.options == nil then ttarg.options = "" end
         
             -- make sure target exists in buildtree. If not, then return successfully
             if ttarg == nil then return true end
@@ -416,17 +505,23 @@ module.newtree = function()
             if #ttarg.depends == 0         then should_rebuild = true end
             
             -- check every dependancy
-            for _, path in pairs(ttarg.depends) do
+            -- ran in order, so precidence is determined this way
+            for _, path in ipairs(ttarg.depends) do
                 -- check if it exists in the buildtree
                 -- if so then call self:build on it
                 if self.targets[path] ~= nil then
                     local ok = self:build(path, is_verbose)
-                    if not ok then return ok end
+                    if not ok then return false end
+                    -- if no file generated, then return success early
+                    if not fs.is_exist(path) then return true end
                 end
 
-                -- check if dependancy exists in the filesystem
+                -- check if dependancy exists in the filesystem if not in tree
                 -- if not then fail build
-                if not fs.is_exist(path) then return false end
+                if not fs.is_exist(path) then 
+                    print("dependancy \""..path.."\" not found in buildtree or filesystem")
+                    return false
+                end
 
                 -- check if dep is newer than targ
                 -- if newer, then set should_rebuild flag
@@ -438,9 +533,9 @@ module.newtree = function()
             -- build target
             if should_rebuild then
                 if is_verbose then print('building: '..target) end
-                ok = ttarg.builder(target, ttarg.sources, ttarg.options)
+                ok = ttarg.builder and ttarg.builder(target, ttarg.sources, ttarg.options) or true
                 --ok = ttarg.builder(target, ttarg.depends, ttarg.options)
-                if not ok then return false
+                if not ok then return false end
             elseif is_verbose then print('skipping:   '..target) end
 
             return true
@@ -451,7 +546,7 @@ module.newtree = function()
         searchby_source = function(self, source)
             hits = {}
             for target, node in pairs(self) do
-                if source in node.sources then
+                if table.isin(node.sources, source) then
                     table.append(hits, target)
                 end
             end
@@ -470,14 +565,18 @@ end
 local gcc = {}
 
 -- return header dependancies
+-- ocnsider having this run buildtree for missing headers
 gcc.gen_dep = function(file, opts)
-    local ok, str = cmd("gcc "..file.." -MM "..opts)
+    -- local str = cmd("gcc "..file.." -MM -MG "..opts)
+    local str = cmd("gcc "..file.." -MM "..opts)
+    if str == "" then return nil end
     str = str:split(":")[2]
     str = str:gsub("\n", " ")
     str = str:gsub("\\", " ")
     local deps = str:squeeze():split()
     -- get rid of first source file
     --return table.concat(table.move(deps, 2, 1, #deps-1), ' ')
+    -- debug.print_table(deps)
     return deps
 end
 
@@ -493,20 +592,64 @@ gcc.filter_headers = function(files)
 end
 
 
--- TODO: add a way for the builder to return failure, which will cancel the whole build
 gcc.builder = function(outpath, infiles, opts)
     -- make sure output directory exists
     fs.mkdir(fs.get_dir(outpath), "-p")
     -- compile
     --local infiles_str = table.concat(gcc.filter_headers(infiles), ' ')
     local infiles_str = table.concat(gcc.filter_headers(infiles), ' ')
-    local ok, _ = cmd(("gcc -o %s %s %s"):format(outpath, infiles_str, opts), true)
-    return ok
+    local err = cmd(("gcc -o %s %s %s"):format(outpath, infiles_str, opts), true)
+    if err ~= "" then print(err) end
+    return err == ""
 end
+
+
+-- lets just make the executable dependant on the libs as well to make sure they run first?
+-- gcc.dep_builder = function(target, files, opts)
+--     if not opts.gcc then opts.gcc = "" end
+--     local err = cmd("gcc "..opts.gcc.." "..file.." -MM -MF "..target, true)
+--     if err ~= "" then print(err); return false end
+--     
+--     return true
+-- end
 
 
 module.gcc = gcc
 
+
+
+
+
+
+local gen = {
+    builder = {}
+}
+
+-- export global object symbol sizes to another object file
+-- https://www.man7.org/linux/man-pages/man1/nm.1.html
+-- https://www.man7.org/linux/man-pages/man1/nm.1p.html
+gen.builder.osizes = function(target, files, opts)
+    cstr = {"#include <stdint.h>"}
+    
+    for _, file in ipairs(files) do
+        local str = cmd("nm -f posix "..objfile)
+        if not ok then return false end
+        
+        local name, type, value, size = table.unpack(str)
+        if string.upper(type) == type and size ~= nil then
+            table.insert("const size_t "..name.."_sizeof=0x"..size)
+        end
+    end
+    table.insert("")
+    
+    local fname, file = fs.temp('w')
+    file:write(table.concat(cstr, "\n"))
+    gcc.builder(target, fname, opts)
+    file:close()
+end
+
+
+module.gen = gen
 
 
 
@@ -520,10 +663,12 @@ local make = {}
 make.builder = function(target, makepath, opts)
     -- TODO should I just throw actual errors instead?
     if #makepath > 1 then printf("ERROR make.builder, more than one source"); return end
-    local makedir = fs.get_dir(makepath[1])
+    -- local makedir = fs.get_dir(makepath[1])
     -- run make
-    local ok, _ = cmd(("make -C %s -f %s %s %s"):format(makedir, makepath[1], opts, target), true)
-    return ok
+    -- local err = cmd(("make -C %s -f %s %s %s"):format(makedir, makepath[1], opts, target), true)
+    local err = cmd(("make -C %s %s"):format(makepath[1], opts), true, true)
+    if err ~= "" then print(err) end
+    return err == ""
 end
 
 
@@ -540,8 +685,9 @@ local luajit = {}
 
 luajit.builder = function(target, sources, opts)
     if #sources > 1 then printf("ERROR luajit.builder, more than one source"); return false end
-    local ok, _ = cmd(("luajit -b %s %s %s"):format(opts, sources[1], target), true)
-    return ok
+    local err = cmd(("luajit -b %s %s %s"):format(opts, sources[1], target), true, true)
+    if err ~= "" then print(err) end
+    return err == ""
 end
 
 
@@ -558,8 +704,9 @@ local copy = {}
 
 copy.builder = function(target, sources, opts)
     local sources_str = table.concat(sources, ' ')
-    local ok, _ = cmd(("cp %s %s %s"):format(opts, sources[1], target), true)
-    return ok
+    local err = cmd2(("cp %s %s %s"):format(opts, sources[1], target), true)
+    if err ~= "" then print(err) end
+    return err == ""
 end
 
 
