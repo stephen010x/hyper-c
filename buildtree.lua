@@ -88,44 +88,80 @@ module.type = enum
 --     return out
 -- end
 
-local function cmd(command, is_print)
-    local stdout, stderr = cmd2(command, nil, is_print)
-    return stdout, stderr == ""
-end
-
-module.cmd = cmd
-
-
-
+-- local function cmd(command, echo_cmd, mask_stdout)
+--     local errno, stdout, stderr = cmd2(command, echo_cmd, nil, true, false)
+--     if stderr then print(stderr) end
+--     return stdout, errno == 0
+-- end
+-- 
+-- module.cmd = cmd
 
 
 
-local _hstdin  = "/tmp/buildtree_stdin"
-local _hstdout = "/tmp/buildtree_stdout"
-local _hstderr = "/tmp/buildtree_stderr"
 
 
-local function cmd2(command, stdin, is_print)
-    if stdin == nil then stdin = "" end
-    if is_print then print(command) end
-    local fstdin = io.open(_stdin, "w")
-    fstdin:write(stdin)
-    fstdin:close()
-    local handle = io.popen(string.format("cat %s | ( %s ) >%s 2>%s", _stdin, command, _stdout, _stderr))
-    local fstdout = io.open(_stdout, "r")
-    local stdout = fstdout:read("*a")
-    fstdout:close()
-    local fstderr = io.open(_stderr, "r")
-    local stderr = fstderr:read("*a")
-    fstderr:close()
+
+local _stdin  = "/tmp/buildtree_stdin"
+local _stdout = "/tmp/buildtree_stdout"
+local _stderr = "/tmp/buildtree_stderr"
+
+
+-- this is just awful. Why did you make me do this, lua standard library? All just to expose stdout?
+local function cmd2(command, echo_cmd, stdin, mask_stdout, mask_stderr, is_debug)
+    if echo_cmd then print(command) end
+
+    if stdin then
+        command = ("cat %s | ( %s )"):format(_stdin, command)
+        local f_stdin = io.open(_stdin, "w")
+        f_stdin:write(stdin)
+        f_stdin:close()
+    end
+
+    command = table.concat({
+        "rm -f /tmp/.out /tmp/.err; ",
+        "mkfifo /tmp/.out /tmp/.err; ",
+        mask_stdout and "cat /tmp/.out >%s & " or "( tee %s ) </tmp/.out & ",
+        mask_stderr and "cat /tmp/.err >%s & " or "( tee %s >&2 ) </tmp/.err & ",
+        "( %s ) >/tmp/.out 2>/tmp/.err; ",
+        "status=$?; ",
+        "wait; rm /tmp/.out /tmp/.err; ",
+        "exit $status; ",
+    }):format(_stdout, _stderr, command)
+
+    if is_debug then print(command) end
+    local ok, _, errno = os.execute(command)
+    
+    local f_stdout = io.open(_stdout, "r")
+    local stdout = f_stdout:read("*a")
+    f_stdout:close()
+    
+    local f_stderr = io.open(_stderr, "r")
+    local stderr = f_stderr:read("*a")
+    f_stderr:close()
+    
     -- remove trailing newline if it exists
     if stdout:sub(-1) == '\n' then stdout = stdout:sub(1, -2) end
     if stderr:sub(-1) == '\n' then stderr = stderr:sub(1, -2) end
-    return stdout, stderr
+
+    if is_debug then
+        stdout, stderr = ("%q"):format(stdout), ("%q"):format(stderr)
+    end
+    
+    return errno, stdout, stderr
 end
 
 module.cmd2 = cmd2
 
+
+
+
+-- local ok, stdout, stderr = cmd(command, echo_cmd, mask_stdout, mask_stderr)
+local function cmd(command, echo_cmd, mask_stdout, mask_stderr)
+    local errno, stdout, stderr = cmd2(command, echo_cmd, nil, mask_stdout, mask_stderr)
+    return errno == 0, stdout, stderr
+end
+
+module.cmd = cmd
 
 
 
@@ -254,44 +290,58 @@ local fs
 -- linux file system helper
 -- TODO: add more error detection to these
 fs = {
-    ls = function(path)
+    ls = function(path, mask_err)
         if path == nil then path = "." end
-        local files = cmd("ls -1 --color=never \""..path.."\""):split('\n', true)
+        local ok, stdout, stderr = cmd("ls -1 --color=never \""..path.."\"", false, true, mask_err)
+        if not ok then return nil end
+        -- local files = cmd("ls -1 --color=never \""..path.."\""):split('\n', true)
+        local files = stdout:split('\n', true)
         for key, value in pairs(files) do
             files[key] = './'..fs.get_nearpath(path..'/'..value)
         end
         return files
     end,
     
-    cd = function(path)
+    cd = function(path, mask_err)
         if path == nil then path = "~" end
-        return cmd("cd \""..path.."\"")
+        local ok, stdout, stderr = cmd("cd \""..path.."\"", false, true, mask_err)
+        -- return cmd("cd \""..path.."\"")
+        return ok
     end,
 
     -- rm = function(path, opts)
     --     cmd("\\rm "..opts.." \""..path.."\"")
     -- end,
 
-    pwd = function()
-        return cmd("pwd -P")
+    pwd = function(mask_err)
+        -- return cmd("pwd -P")
+        local ok, stdout, stderr = cmd("pwd -P", false, true, mask_err)
+        return ok and stdout or nil
     end,
 
-    -- TODO: add error detection
-    mkdir = function(path, opts)
+    mkdir = function(path, opts, mask_err)
         if opts == nil then opts = "" end
-        cmd("mkdir "..opts.." "..path)
+        -- local _, ok = cmd("mkdir "..opts.." "..path)
+        local ok, stdout, stderr = cmd("mkdir "..opts.." "..path, false, true, mask_err)
+        return ok
     end,
 
-    get_type = function(path)
-        return cmd("file -b \""..path.."\"")
+    get_type = function(path, mask_err)
+        -- return cmd("file -b \""..path.."\"")
+        local ok, stdout, stderr = cmd("file -b \""..path.."\"", false, true, mask_err)
+        return ok and stdout or nil
     end,
 
-    get_fullpath = function(path)
-        return cmd("realpath --canonicalize-missing \""..path.."\"")
+    get_fullpath = function(path, mask_err)
+        -- return cmd("realpath --canonicalize-missing \""..path.."\"")
+        local ok, stdout, stderr = cmd("realpath --canonicalize-missing \""..path.."\"", false, true, mask_err)
+        return ok and stdout or nil
     end,
 
-    get_dir = function(path)
-        return cmd("dirname -- "..path)
+    get_dir = function(path, mask_err)
+        -- return cmd("dirname -- "..path)
+        local ok, stdout, stderr = cmd("dirname -- "..path, false, true, mask_err)
+        return ok and stdout or nil
     end,
 
     -- get file extension from name
@@ -303,8 +353,10 @@ fs = {
         return index and path:sub(index) or ""
     end,
 
-    get_name = function(path)
-        return cmd("basename \""..path.."\"")
+    get_name = function(path, mask_err)
+        -- return cmd("basename \""..path.."\"")
+        local ok, stdout, stderr = cmd("basename \""..path.."\"", false, true, mask_err)
+        return ok and stdout or nil
     end,
 
     set_ext = function(names, ext)
@@ -315,7 +367,7 @@ fs = {
 
         for key, name in pairs(names) do
             local nlist = name:split('.')
-            nlist[#nlist] = nil
+            if #nlist > 1 then nlist[#nlist] = nil end
             rt[key] = table.concat(nlist, '.')..'.'..ext
         end
 
@@ -323,21 +375,30 @@ fs = {
     end,
 
     -- returns path relative to base
-    get_nearpath = function(path, base)
+    get_nearpath = function(path, base, mask_err)
         if base == nil then base = '.' end
-        return cmd("realpath --relative-to=\""..base.."\" \""..path.."\"")
+        -- return cmd("realpath --relative-to=\""..base.."\" \""..path.."\"")
+        local ok, stdout, stderr = cmd("realpath --relative-to=\""..base.."\" \""..path.."\"", false, true, mask_err)
+        return ok and stdout or nil
     end,
 
-    get_time = function(path)
-        return tonumber(cmd("stat -c %Y "..path.." 2>/dev/null"))
+    get_time = function(path, mask_err)
+        -- local stdout, ok = cmd("stat -c %Y "..path.." 2>/dev/null")
+        -- return tonumber(stdout), ok
+        local ok, stdout, stderr = cmd("stat -c %Y "..path.." 2>/dev/null", false, true, mask_err)
+        return ok and tonumber(stdout) or nil
     end,
 
     is_dir = function(path)
-        return cmd("[ -d \""..path.."\" ] && echo 1") == "1"
+        -- return cmd("[ -d \""..path.."\" ] && echo 1") == "1"
+        local ok, stdout, stderr = cmd("[ -d \""..path.."\" ] || exit 1", false, true, mask_err)
+        return ok
     end,
 
     is_exist = function(path)
-        return cmd("[ -e \""..path.."\" ] && echo 1") == "1"
+        -- return cmd("[ -e \""..path.."\" ] && echo 1") == "1"
+        local ok, stdout, stderr = cmd("[ -e \""..path.."\" ] || exit 1", false, true, mask_err)
+        return ok
     end,
 
     tidy = function(path)
@@ -354,8 +415,9 @@ fs = {
     -- delete = function(path, data) end,
     -- is_ext = function(path, ext) end,
 
-    temp = function(mode)
+    temp = function(mode, ext)
         local fname = os.tmpname()
+        if ext then fname = fs.set_ext(fname, ext) end
         local file = io.open(fname, mode or 'a+')
         return fname, file
     end,
@@ -484,8 +546,11 @@ module.newtree = function()
         -- dependancies built or older
         -- btw, targets can be directories
         build = function(self, target, is_verbose)
-            if is_verbose then print('checking: '..target) end
-            if is_verbose == nil then is_verbose = false end
+            -- recursion protection
+            if self.targets[target]._hit then return true end
+            self.targets[target]._hit = true
+        
+            if is_verbose then print('CHECKING    '..target) end
 
             local ttarg = self.targets[target]
 
@@ -512,31 +577,33 @@ module.newtree = function()
                 if self.targets[path] ~= nil then
                     local ok = self:build(path, is_verbose)
                     if not ok then return false end
-                    -- if no file generated, then return success early
-                    if not fs.is_exist(path) then return true end
+                    -- if no file generated unless recursion, then return success early
+                    if not fs.is_exist(path) and not self.targets[path]._hit then return true end
                 end
 
                 -- check if dependancy exists in the filesystem if not in tree
-                -- if not then fail build
-                if not fs.is_exist(path) then 
+                -- if not then fail build unless recursion
+                if not fs.is_exist(path) and not self.targets[path]._hit then
                     print("dependancy \""..path.."\" not found in buildtree or filesystem")
                     return false
                 end
 
                 -- check if dep is newer than targ
                 -- if newer, then set should_rebuild flag
-                if (fs.get_time(path) or 0) >= targ_time then
+                -- if (fs.get_time(path) or 0) >= targ_time then
+                if (fs.get_time(path) or math.huge) > targ_time then
+                    -- if is_verbose then print('OUTDATED    '..target..' <-- '..path) end
                     should_rebuild = true
                 end
             end
 
             -- build target
             if should_rebuild then
-                if is_verbose then print('building: '..target) end
-                ok = ttarg.builder and ttarg.builder(target, ttarg.sources, ttarg.options) or true
+                if is_verbose then print('BUILDING    '..target) end
+                ok = ttarg.builder and ttarg.builder(target, ttarg.sources, ttarg.options)
                 --ok = ttarg.builder(target, ttarg.depends, ttarg.options)
-                if not ok then return false end
-            elseif is_verbose then print('skipping:   '..target) end
+                if not ok then return ok == nil end
+            elseif is_verbose then print('SKIPPING    '..target) end
 
             return true
         end,
@@ -568,8 +635,9 @@ local gcc = {}
 -- ocnsider having this run buildtree for missing headers
 gcc.gen_dep = function(file, opts)
     -- local str = cmd("gcc "..file.." -MM -MG "..opts)
-    local str = cmd("gcc "..file.." -MM "..opts)
-    if str == "" then return nil end
+    -- local str, _ = cmd("gcc "..file.." -MM "..opts)
+    local ok, str, _ = cmd("gcc "..file.." -MM "..opts, false, true, false)
+    if not ok then return nil end
     str = str:split(":")[2]
     str = str:gsub("\n", " ")
     str = str:gsub("\\", " ")
@@ -598,9 +666,9 @@ gcc.builder = function(outpath, infiles, opts)
     -- compile
     --local infiles_str = table.concat(gcc.filter_headers(infiles), ' ')
     local infiles_str = table.concat(gcc.filter_headers(infiles), ' ')
-    local err = cmd(("gcc -o %s %s %s"):format(outpath, infiles_str, opts), true)
-    if err ~= "" then print(err) end
-    return err == ""
+    -- local stdout, ok = cmd(("gcc -o %s %s %s"):format(outpath, infiles_str, opts), true)
+    local ok, _, _ = cmd(("gcc -o %s %s %s -fdiagnostics-color=always"):format(outpath, infiles_str, opts), true, false, false)
+    return ok
 end
 
 
@@ -629,23 +697,26 @@ local gen = {
 -- https://www.man7.org/linux/man-pages/man1/nm.1.html
 -- https://www.man7.org/linux/man-pages/man1/nm.1p.html
 gen.builder.osizes = function(target, files, opts)
-    cstr = {"#include <stdint.h>"}
+    cstr = {"#include <stddef.h>"}
     
     for _, file in ipairs(files) do
-        local str = cmd("nm -f posix "..objfile)
+        -- local str = cmd("nm -f posix "..objfile)
+        local ok, str, _ = cmd("nm -f posix "..file, false, true, false)
         if not ok then return false end
-        
-        local name, type, value, size = table.unpack(str)
+
+        local name, type, value, size = table.unpack(str:split())
         if string.upper(type) == type and size ~= nil then
-            table.insert("const size_t "..name.."_sizeof=0x"..size)
+            table.insert(cstr, ("const size_t %s_sizeof=0x%s;"):format(name, size))
         end
     end
-    table.insert("")
+    table.insert(cstr, "")
     
-    local fname, file = fs.temp('w')
+    local fname, file = fs.temp('w', 'c')
     file:write(table.concat(cstr, "\n"))
-    gcc.builder(target, fname, opts)
     file:close()
+    ok = gcc.builder(target, {fname}, "-c "..opts)
+    os.remove(fname)
+    return ok
 end
 
 
@@ -666,9 +737,11 @@ make.builder = function(target, makepath, opts)
     -- local makedir = fs.get_dir(makepath[1])
     -- run make
     -- local err = cmd(("make -C %s -f %s %s %s"):format(makedir, makepath[1], opts, target), true)
-    local err = cmd(("make -C %s %s"):format(makepath[1], opts), true, true)
-    if err ~= "" then print(err) end
-    return err == ""
+    -- local err = cmd(("make -C %s %s"):format(makepath[1], opts), true, true)
+    -- if err ~= "" then print(err) end
+    -- return err == ""
+    local ok, _, _ = cmd(("make -C %s %s"):format(makepath[1], opts), true, false, false)
+    return ok
 end
 
 
@@ -685,9 +758,12 @@ local luajit = {}
 
 luajit.builder = function(target, sources, opts)
     if #sources > 1 then printf("ERROR luajit.builder, more than one source"); return false end
-    local err = cmd(("luajit -b %s %s %s"):format(opts, sources[1], target), true, true)
-    if err ~= "" then print(err) end
-    return err == ""
+    -- local err = cmd(("luajit -b %s %s %s"):format(opts, sources[1], target), true, true)
+    -- if err ~= "" then print(err) end
+    -- return err == ""
+    fs.mkdir(fs.get_dir(target), "-p")
+    local ok, _, _ = cmd(("luajit -b %s %s %s"):format(opts, sources[1], target), true, false, false)
+    return ok
 end
 
 
@@ -704,9 +780,12 @@ local copy = {}
 
 copy.builder = function(target, sources, opts)
     local sources_str = table.concat(sources, ' ')
-    local err = cmd2(("cp %s %s %s"):format(opts, sources[1], target), true)
-    if err ~= "" then print(err) end
-    return err == ""
+    -- local err = cmd2(("cp %s %s %s"):format(opts, sources[1], target), true)
+    -- if err ~= "" then print(err) end
+    -- return err == ""
+    fs.mkdir(fs.get_dir(target), "-p")
+    local ok, _, _ = cmd(("cp %s %s %s"):format(opts, sources_str, target), true, false, false)
+    return ok
 end
 
 

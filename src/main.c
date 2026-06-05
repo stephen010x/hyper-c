@@ -24,7 +24,12 @@
 
 
 
-extern const unsigned char luaJIT_BC_lexer[];
+// extern const unsigned char luaJIT_BC_lexer[];
+
+
+void openlibs_list(lua_State *L, const luaL_Reg lualibs[]);
+void gen_argtable(lua_State *L, char *argv[], int argc);
+
 
 
 
@@ -46,7 +51,7 @@ static const luaL_Reg lualibs[] = {
   // I'll keep the null terminator for now
   // in case I want to pass this as a parameter
   // rather than it be a static global
-}
+};
 
 
 
@@ -66,17 +71,16 @@ int main(int argc, char *argv[]) {
     gen_argtable(L, argv, argc);
 
     // load the cunks
-    luaL_loadbuffer(L, luaJIT_BC_lexer_size,  luaJIT_BC_lexer,  "lexer");
-    luaL_loadbuffer(L, luaJIT_BC_parser_size, luaJIT_BC_parser, "parser");
-    luaL_loadbuffer(L, luaJIT_BC_lpeg_size,   luaJIT_BC_lpeg,   "lpeg");
+    luaL_loadbuffer(L, luaJIT_BC_lexer,  luaJIT_BC_lexer_sizeof,  "lexer");
+    luaL_loadbuffer(L, luaJIT_BC_parser, luaJIT_BC_parser_sizeof, "parser");
+    // luaL_loadbuffer(L, luaJIT_BC_lpeg,   luaJIT_BC_lpeg_sizeof,   "lpeg");
     #ifdef __DEBUG__
-    luaL_loadbuffer(L, luaJIT_BC_test_size,   luaJIT_BC_test,   "test");
-    luaL_loadbuffer(L, luaJIT_BC_debug_size,  luaJIT_BC_debug,  "debug");
+    luaL_loadbuffer(L, luaJIT_BC_test,   luaJIT_BC_test_sizeof,   "test");
+    luaL_loadbuffer(L, luaJIT_BC_debug,  luaJIT_BC_debug_sizeof,  "debug");
     #endif
     
     return 0;
 }
-
 
 
 

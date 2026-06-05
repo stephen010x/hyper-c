@@ -18,7 +18,7 @@ local gen_c_objs
 local gen_lua_objs
 
 
-local is_verbose = true
+local is_verbose = false
 local is_show_tree = false
 
 
@@ -36,7 +36,7 @@ default_goal = 'debug'
 local goal = arg[1] or default_goal
 
 
-local outname = "hyper"
+local outname = "hyperc"
 
 
 local dir = {
@@ -69,10 +69,14 @@ local libs = {
         inc  = fs.path(dir.lib, "lpeg-1.1.0/"),
         opts = "",
     },
+    -- luckily I dont need this as a dependancy because I only use the headers
+    -- and the headers are captured by other things. 
+    -- and this doesnt generate any objects or library yet
     ["utils"] = {
         bin  = fs.path(dir.lib, "toolkit/"),
         inc  = fs.path(dir.lib, "toolkit/inc/"),
         opts = "",
+        header_only = true,
     },
 }
 
@@ -82,7 +86,7 @@ local libs = {
 flags = "-Wall -Wextra"
 cflags = "-std=gnu17 -fvisibility=internal -Wno-multichar -fno-pie -I" .. dir.inc
 --cflags = cflags .. " -isystem" .. gcc_plugin_dir .. "/include"
-lflags = "-no-pie -static -lluajit -llpeg"
+lflags = "-no-pie -static -lluajit -llpeg -lm"
 jflags = ""
 
 
@@ -161,7 +165,9 @@ local buildtree = build.newtree()
 -- add flags to make all libraries dirs visable to compiler
 for name, lib in pairs(libs) do
     goals[goal].cflags = goals[goal].cflags .. " -I" .. lib.inc
-    goals[goal].lflags = goals[goal].lflags .. " -L" .. lib.bin
+    if not lib.header_only then
+        goals[goal].lflags = goals[goal].lflags .. " -L" .. lib.bin
+    end
 end
 
 
@@ -186,16 +192,20 @@ local jflags = goals[goal].jflags
 -- setup library buildtrees and flags
 local libpaths = {}
 for name, lib in pairs(libs) do
-    buildtree.targets[fs.path(lib.bin, name)] = {
-        builder = lib.make and make.builder or nil,
-        sources = {lib.make},
-        options = lib.opts,
-    }
-    table.insert(libpaths, fs.path(lib.bin, name))
+    if not lib.header_only then
+        buildtree.targets[fs.path(lib.bin, name)] = {
+            builder = lib.make and make.builder or nil,
+            depends = {fs.path(lib.bin, name)}, -- depend on self so it won't rerun if it exists
+            sources = {lib.make},
+            options = lib.opts,
+        }
+        table.insert(libpaths, fs.path(lib.bin, name))
 
-    if lib.prebuild then
-        local ok = buildtree:build(fs.path(lib.bin, name))
-        if not ok then return end
+        if lib.prebuild then
+            -- debug.print_table(buildtree, true)
+            local ok = buildtree:build(fs.path(lib.bin, name), is_verbose)
+            if not ok then return end
+        end
     end
 end
 
@@ -223,7 +233,7 @@ function onbuild()
     -- local depends = concat_tables(c_objs, lua_objs, libs, this)
     -- local sources = concat_tables(c_objs, lua_objs, libs)
     local depends = table.join(libpaths, c_objs, lua_objs, {this})
-    local sources = table.join(libpaths, c_objs, lua_objs)
+    local sources = table.join(c_objs, lua_objs)
 
     -- debug.print_table(depends)
 
@@ -241,10 +251,10 @@ function onbuild()
     -- copy from executable from tmp to bin
     buildtree.targets[fs.path(dir.bin, outname)] = {
         builder = copy.builder,
-        depends = {fs.path(tmpdir, outname)},
+        depends = {fs.path(tmpdir, outname), this},
         sources = {fs.path(tmpdir, outname)},
         options = "",
-        force_rebuild = false,
+        force_rebuild = true,
     }
 
 
@@ -372,7 +382,7 @@ gen_c_objs = function(srcs, tmpdir, refdir, opts)
             builder = cc.builder,
             depends = depends,
             sources = {cfile},
-            options = opts.." -c",
+            options = "-c "..opts,
         }
     end
 
@@ -420,7 +430,7 @@ gen_lua_objs = function(srcs, tmpdir, refdir, opts, copts)
         options = copts,
     }
 
-    table.insert(objs, fs.path(tmpdir, "_auto_luabc.o"))
+    objs = table.join(objs, {fs.path(tmpdir, "_auto_luabc.o")})
     return objs
 end
 

@@ -1,2 +1,6 @@
 tmp
 bin
+*.log
+*.o
+*.d
+perf.data

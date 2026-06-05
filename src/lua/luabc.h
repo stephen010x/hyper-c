@@ -3,12 +3,12 @@
 
 #include <stddef.h>
 
-extern const unsigned char luaJIT_BC_lexer[];
-extern const unsigned char luaJIT_BC_parser[];
-extern const unsigned char luaJIT_BC_lpeg[];
+extern const char luaJIT_BC_lexer[];
+extern const char luaJIT_BC_parser[];
+extern const char luaJIT_BC_lpeg[];
 #ifdef __DEBUG__
-extern const unsigned char luaJIT_BC_test[];
-extern const unsigned char luaJIT_BC_debug[];
+extern const char luaJIT_BC_test[];
+extern const char luaJIT_BC_debug[];
 #endif
 
 extern const size_t luaJIT_BC_lexer_sizeof;
