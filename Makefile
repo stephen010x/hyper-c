@@ -1,6 +1,6 @@
 
 
-TEST_CMD := ./bin/hyper --test ./src/lexer.c ./bin/test
+TEST_CMD := ./bin/hyperc --test ./src/lexer.c ./bin/test
 
 
 all:
@@ -18,7 +18,7 @@ cleanlibs:
 	make -C lib/lpeg-1.1.0/ clean
 
 test:
-	#./bin/hyper --test ./test/main.c ./bin/test.c
+	@# ./bin/hyper --test ./test/main.c ./bin/test.c
 	$(TEST_CMD)
 
 gdb:

@@ -31,7 +31,7 @@ local gen    = build.gen
 table = build.table
 
 
-default_goal = 'debug'
+default_goal = 'release'
 -- set goal variable from input args
 local goal = arg[1] or default_goal
 
@@ -49,10 +49,6 @@ local dir = {
 }
 
 
--- local luabc_c_path    = dir.src .. "/luabc.c"
--- local lib_luajit_path = dir.lib .. "/LuaJIT/"
--- local lib_lpeg_path   = dir.src .. "/lpeg-1.1.0/"
-
 
 
 local libs = {
@@ -69,14 +65,11 @@ local libs = {
         inc  = fs.path(dir.lib, "lpeg-1.1.0/"),
         opts = "",
     },
-    -- luckily I dont need this as a dependancy because I only use the headers
-    -- and the headers are captured by other things. 
-    -- and this doesnt generate any objects or library yet
     ["utils"] = {
         bin  = fs.path(dir.lib, "toolkit/"),
         inc  = fs.path(dir.lib, "toolkit/inc/"),
         opts = "",
-        header_only = true,
+        header_only = true, -- makes it not a dependancy, but still adds compiler flags to find headers
     },
 }
 
@@ -119,38 +112,13 @@ local lua_srcs = fs.find(dir.src, true, filter.ext('.lua'))
 local buildtree = build.newtree()
 
 
--- -- add LuaJIT library makefile to buildtree
--- buildtree.targets[dir.lib .. "/LuaJIT/src/libluajit.a"] = {
---     builder = make.builder,
---     sources = {dir.lib .. "/LuaJIT/"},
---     -- options = 'BUILDMODE=static XCFLAGS="-DLUAJIT_DISABLE_FFI" CFLAGS="-std=gnu17 -fdata-sections -ffunction-sections"',
---     options = 'BUILDMODE=static XCFLAGS="-DLUAJIT_DISABLE_FFI" CFLAGS="-fdata-sections -ffunction-sections"',
--- }
--- 
--- -- add lpeg library makefile to buildtree
--- buildtree.targets[dir.lib .. "/lpeg-1.1.0/liblpeg.a"] = {
---     builder = make.builder,
---     sources = {dir.lib .. "/lpeg-1.1.0/"},
---     options = "",
--- }
 
 
 
--- because I guess luajit generates headers I need, so it is getting built first
--- function touchup(tree) {
---     lib = libs["libluajit.a"]
---     tree:build(libs["libluajit.a"]., is_verbose)
--- }
 
 
 
--- local ljlib = libs["libluajit.a"]
--- buildtree.targets[ljlib.inc .. "/luajit.h"] = {
---     depends = {ljlib.bin .. "/" .. "libluajit.a"},
--- }
 
-
--- TODO: I need a way to generate missing header files, that I can then run on the buildtree
 
 
 
@@ -169,15 +137,6 @@ for name, lib in pairs(libs) do
         goals[goal].lflags = goals[goal].lflags .. " -L" .. lib.bin
     end
 end
-
-
--- add flags to make all libraries dirs visable to compiler
--- for _, libdir in pairs(fs.ls(dir.lib)) do
---     if fs.is_dir(libdir) then
---         goals[goal].cflags = goals[goal].cflags..' -I'..libdir..'/inc'..' -I'..libdir..'/src'
---         goals[goal].lflags = goals[goal].lflags..' -L'..libdir..'/bin'
---     end
--- end
 
 
 
@@ -204,7 +163,7 @@ for name, lib in pairs(libs) do
         if lib.prebuild then
             -- debug.print_table(buildtree, true)
             local ok = buildtree:build(fs.path(lib.bin, name), is_verbose)
-            if not ok then return end
+            if not ok then error("build failed") end
         end
     end
 end
@@ -215,7 +174,6 @@ end
 local oflags = oflags:squeeze()
 local xflags = xflags:squeeze()
 local jflags = jflags:squeeze()
--- local jflags = jflags:gsub("%s+", " ")
 
 
 
@@ -234,8 +192,6 @@ function onbuild()
     -- local sources = concat_tables(c_objs, lua_objs, libs)
     local depends = table.join(libpaths, c_objs, lua_objs, {this})
     local sources = table.join(c_objs, lua_objs)
-
-    -- debug.print_table(depends)
 
 
     -- build to tmp dir
@@ -258,22 +214,6 @@ function onbuild()
     }
 
 
-    -- special handling for luabc.c
-    -- creates preproc definitions for bytecode sizes
-    -- TODO: I really don't like this and would prefer finding a way to clean it up
-    -- local luabc_c_obj = buildtree:searchby_source(luabc_c_path)[0]
-    -- local luabc_node = buildtree.targets[luabc_c_obj]
-    -- 
-    -- luabc_node.depends = table.join(luabc_node.depends, lua_objs)
-    -- luabc_node.builder = function(target, sources, opts)
-    --     local opts = {opts}
-    --     for _, luaobj in ipairs(lua_objs) do
-    --         table.insert(opts, buildtree[luaobj].get_size_opt())
-    --     end
-    --     cc.builder(target, sources, table.concat(opts, " "))
-    -- end
-
-
     -- if touchup then
     --     local ok = touchup(buildtree)
     --     if not ok then print("build failed"); return end
@@ -284,7 +224,7 @@ function onbuild()
 
     -- run buildtree
     local ok = buildtree:build(fs.path(dir.bin, outname), is_verbose)
-    if not ok then print("build failed") end
+    if not ok then error("build failed") end
     
 end
 
@@ -321,19 +261,6 @@ end
 
 
 
-
-
--- local function concat_tables(...)
---     out = {}
---     for _, table in pairs({...}) do
---         for key, value in pairs(table) do
---             out[key] = value
---         end
---     end
---     return out
--- end
-
-
 -- function to properly concat flags
 ccatflags = function(...)
     flist = {...}
@@ -343,7 +270,6 @@ ccatflags = function(...)
     end
     return out:squeeze()
 end
-
 
 
 
@@ -414,11 +340,6 @@ gen_lua_objs = function(srcs, tmpdir, refdir, opts, copts)
             depends = {file, this},
             sources = {file},
             options = opts.." -t obj",
-            
-            -- get_size_opt = function()       -- only call this after the lua file is compiled
-            --     local name, _, _, size = select(2, cmd("nm -f posix "..objfile)).split()
-            --     return "-D"..name.."_SIZE=0x"..size
-            -- end
         }
     end
 
@@ -439,79 +360,3 @@ end
 
 
 onbuild()
-
-
-
-
-
---#########################################################################
---#########################################################################
---          JUNK CODE
-
-
-
-
-
-
-
-
--- add targets to build tree
--- TODO: add a sources member to targets that is distinct from depends
---       as well as add this makefile to the dependancies
--- for _, out in pairs(outputs) do
---     -- get recursive list of C files in the source directory
---     local c_srcs = fs.find(out.srcdir, true, filter.ext('.c'))
--- 
---     -- local oflags = concat_flags(flags, cflags, out.flags, out.cflags)
---     -- local xflags = concat_flags(flags, lflags, out.flags, out.lfla
---     local oflags = concat_flags(goals[goal].flags, goals[goal].cflags, out.flags, out.cflags)
---     local xflags = concat_flags(goals[goal].flags, goals[goal].lflags, out.flags, out.lflags)
---     
---     -- generate objects into buildtree
---     local tmpdir = dir.tmp .. '/' .. fs.get_name(out.target) .. '_' .. goal
---     local c_objs = gen_c_objs(c_srcs, tmpdir, fs.get_dir(out.srcdir), oflags)
--- 
---     buildtree.targets[out.target] = {
---         --type = type.elf,
---         builder = cc.builder,
---         depends = concat_tables(c_objs, out.depends),
---         sources = c_objs,
---         options = xflags,
---         force_rebuild = false,
---     }
--- end
-
-
-
--- if is_show_tree then
---     debug.print_table(buildtree, true)
--- end
-
-
-
--- -- build outputs
--- for _, out in pairs(outputs) do
---     local ok = buildtree:build(out.target, is_verbose)
---     if not ok then 
---         print("build failed")
---         break
---     end
--- end
-
-
-
-
-
-
-
--- manual output tree
--- more is generated and added to this
--- local outputs = {
---     main = {
---         target = dir.bin .. "/" .. outname,
---         srcdir = dir.src,
---         cflags = "-fno-pie",
---         lflags = "-no-pie",
---         depends = {},
---     },
--- }

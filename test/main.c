@@ -1,8 +1,18 @@
 //#include <stdio.h>
 //#include <string.h>
 
+const char str[] = "Hello world.\\\\\\ I am' dave! " "yehaw!\n" "how are \"you\" today?";
 
-
+char  test7 = 'a';
+bool  test0 = true;
+int   test1 = 01177;
+int   test1 = 1194;
+int   test2 = 119400;
+int   test3 = 1094;
+int   test8 = 1094ll;
+float test4 = 9.871234f;
+float test5 = 10e+36;
+float test6 = 0x10p+36;
  
 
 
@@ -49,6 +59,7 @@ struct output {
 struct uniforms {
     int time;
 };
+
 
 
 

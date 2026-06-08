@@ -50,8 +50,6 @@ end
 module.debug = debug
 
 
--- debug.print_table(table, true, '\n', '\t')
-
 
 
 
@@ -76,37 +74,13 @@ module.type = enum
 
 
 
-
--- TODO: make this return stdout, stderr, and errno, as well as accept an stdin.
--- local function cmd(command, is_print)
---     if is_print then print(command) end
---     local handle = io.popen(command)
---     local out = handle:read("*a")
---     handle:close()
---     -- remove trailing newline if it exists
---     if out:sub(-1) == '\n' then out = out:sub(1, -2) end
---     return out
--- end
-
--- local function cmd(command, echo_cmd, mask_stdout)
---     local errno, stdout, stderr = cmd2(command, echo_cmd, nil, true, false)
---     if stderr then print(stderr) end
---     return stdout, errno == 0
--- end
--- 
--- module.cmd = cmd
-
-
-
-
-
-
 local _stdin  = "/tmp/buildtree_stdin"
 local _stdout = "/tmp/buildtree_stdout"
 local _stderr = "/tmp/buildtree_stderr"
 
 
 -- this is just awful. Why did you make me do this, lua standard library? All just to expose stdout?
+-- also it seems to be a really slow function. Find a way to improve this.
 local function cmd2(command, echo_cmd, stdin, mask_stdout, mask_stderr, is_debug)
     if echo_cmd then print(command) end
 
@@ -165,24 +139,6 @@ module.cmd = cmd
 
 
 
-
-
--- local function pipe(command, stdin, is_print)
---     if is_print then print("STDIN | "..command) end
---     local tmp = os.tmpname()
---     local file = io.open(tmp, "w")
---     file:write(stdin)
---     file:close()
---     local handle = io.popen(string.format("cat %s | %s", tmp, command))
---     local out = handle:read("*a")
---     local ok, _ = handle:close()
---     os.remove(tmp)
---     -- remove trailing newline if it exists
---     if out:sub(-1) == '\n' then out = out:sub(1, -2) end
---     return ok, out
--- end
--- 
--- module.pipe = pipe
 
 
 
@@ -426,44 +382,6 @@ fs = {
 
 
 
--- fs.find = function(path, is_recursive, filter)
---     if is_recursive == nil then is_recursive = false end
--- 
---     if not fs.is_dir(path) then
---         print("fs.find(...): \""..path.."\" is not a directory")
---     end
---         
---     --local dirs = table.new({path})
---     local dirs = {path}
---     local newdirs = {}
---     local files = {}
---     
---     while #dirs ~= 0 do
---         local _, dpath = next(dirs)
---         if dpath == nil then 
---             if #newdirs == 0 then break end
---             
---         end
--- 
---         table.insert(newdirs, dpath)
--- 
---         print(#dirs)
---         
---         for _, fpath in pairs(fs.ls(dpath)) do
---             print(fpath)
---             print(fs.is_dir(fpath))
---             if fs.is_dir(fpath) then
---                 table.insert(dirs, fpath)
---             elseif filter(fs.get_ext(fpath)) then
---                 table.insert(files, fpath)
---             end
---         end
---         
---     end
--- 
---     return files
--- end
-
 
 
 fs.find = function(path, is_recursive, filter, _files)
@@ -632,19 +550,14 @@ end
 local gcc = {}
 
 -- return header dependancies
--- ocnsider having this run buildtree for missing headers
+-- consider having this run buildtree for missing headers
 gcc.gen_dep = function(file, opts)
-    -- local str = cmd("gcc "..file.." -MM -MG "..opts)
-    -- local str, _ = cmd("gcc "..file.." -MM "..opts)
     local ok, str, _ = cmd("gcc "..file.." -MM "..opts, false, true, false)
     if not ok then return nil end
     str = str:split(":")[2]
     str = str:gsub("\n", " ")
     str = str:gsub("\\", " ")
     local deps = str:squeeze():split()
-    -- get rid of first source file
-    --return table.concat(table.move(deps, 2, 1, #deps-1), ' ')
-    -- debug.print_table(deps)
     return deps
 end
 
@@ -661,12 +574,8 @@ end
 
 
 gcc.builder = function(outpath, infiles, opts)
-    -- make sure output directory exists
     fs.mkdir(fs.get_dir(outpath), "-p")
-    -- compile
-    --local infiles_str = table.concat(gcc.filter_headers(infiles), ' ')
     local infiles_str = table.concat(gcc.filter_headers(infiles), ' ')
-    -- local stdout, ok = cmd(("gcc -o %s %s %s"):format(outpath, infiles_str, opts), true)
     local ok, _, _ = cmd(("gcc -o %s %s %s -fdiagnostics-color=always"):format(outpath, infiles_str, opts), true, false, false)
     return ok
 end
@@ -700,7 +609,6 @@ gen.builder.osizes = function(target, files, opts)
     cstr = {"#include <stddef.h>"}
     
     for _, file in ipairs(files) do
-        -- local str = cmd("nm -f posix "..objfile)
         local ok, str, _ = cmd("nm -f posix "..file, false, true, false)
         if not ok then return false end
 
@@ -734,12 +642,6 @@ local make = {}
 make.builder = function(target, makepath, opts)
     -- TODO should I just throw actual errors instead?
     if #makepath > 1 then printf("ERROR make.builder, more than one source"); return end
-    -- local makedir = fs.get_dir(makepath[1])
-    -- run make
-    -- local err = cmd(("make -C %s -f %s %s %s"):format(makedir, makepath[1], opts, target), true)
-    -- local err = cmd(("make -C %s %s"):format(makepath[1], opts), true, true)
-    -- if err ~= "" then print(err) end
-    -- return err == ""
     local ok, _, _ = cmd(("make -C %s %s"):format(makepath[1], opts), true, false, false)
     return ok
 end
@@ -752,15 +654,10 @@ module.make = make
 
 
 
-
-
 local luajit = {}
 
 luajit.builder = function(target, sources, opts)
     if #sources > 1 then printf("ERROR luajit.builder, more than one source"); return false end
-    -- local err = cmd(("luajit -b %s %s %s"):format(opts, sources[1], target), true, true)
-    -- if err ~= "" then print(err) end
-    -- return err == ""
     fs.mkdir(fs.get_dir(target), "-p")
     local ok, _, _ = cmd(("luajit -b %s %s %s"):format(opts, sources[1], target), true, false, false)
     return ok
@@ -774,15 +671,10 @@ module.luajit = luajit
 
 
 
-
-
 local copy = {}
 
 copy.builder = function(target, sources, opts)
     local sources_str = table.concat(sources, ' ')
-    -- local err = cmd2(("cp %s %s %s"):format(opts, sources[1], target), true)
-    -- if err ~= "" then print(err) end
-    -- return err == ""
     fs.mkdir(fs.get_dir(target), "-p")
     local ok, _, _ = cmd(("cp %s %s %s"):format(opts, sources_str, target), true, false, false)
     return ok
@@ -790,8 +682,6 @@ end
 
 
 module.copy = copy
-
-
 
 
 

@@ -6,9 +6,13 @@
 --  * This document is based almost entierly on these specs and
 --  * matching rules:
 --  * 
---  * https://port70.net/~nsz/c/c23/n3220.html#A
+--  * https://port70.net/~nsz/c/c23/n3220.html#A.1
 --  *
 --  * ######################## */
+
+
+-- TODO: I should find a way to pre-run this and store it as a binary encoded lua state that can be
+-- easily and quickly used.
 
 
 
@@ -48,13 +52,13 @@ local clex = {}
 
 
 
-clex.digit           = R("19")                           -- range 0 to 9
-clex.nonzero_digit   = R("09")
+clex.digit           = R("09")                           -- range 0 to 9
+clex.nonzero_digit   = R("19")
 clex.octal_digit     = R("07")
 clex.hex_digit       = R("09") + R("af") + R("AF")
 clex.binary_digit    = S("01")                           -- one of these digits 0 or 1
 clex.nondigit        = R("az") + R("AZ") + P("_")        -- range a to z and A to Z
-clex.hex_prefix      = P("0x0") + P("0X")
+clex.hex_prefix      = P("0x") + P("0X")
 clex.binary_prefix   = P("0b") + P("0B")
 clex.sign            = S("+-")
 clex.encoding_prefix = S"uUL" + P"u8"
@@ -64,141 +68,185 @@ clex.whitespace      = S(" \t\v\f\n")
 clex.alphanumeric    = clex.digit + clex.nondigit
 clex.source_char     = clex.alphanumeric + clex.punctuation + clex.whitespace
 
-clex.c_char = clex.source_char - P("'")  - P("\\") - P("\n") -- any char with these exceptions
-clex.s_char = clex.source_char - P("\"") - P("\\") - P("\n") -- any char with these exceptions
-clex.h_char = clex.source_char - P(">")  - P("\n")
-clex.q_char = clex.source_char - P("\"") - P("\n")
+-- clex.c_char = clex.source_char - P("'")  - P("\\") - P("\n") -- any char with these exceptions
+-- clex.s_char = clex.source_char - P("\"") - P("\\") - P("\n") -- any char with these exceptions
+-- clex.h_char = clex.source_char - P(">")  - P("\n")
+-- clex.q_char = clex.source_char - P("\"") - P("\n")
 
 
 
 
 
-
-clex.keyword = lpeg.P({
-    "KEYWORD",
-    KEYWORD = 
-        P("alignas")       +
-        P("alignof")       +
-        P("auto")          +
-        P("bool")          +
-        P("break")         +
-        P("case")          +
-        P("char")          +
-        P("const")         +
-        P("constexpr")     +
-        P("continue")      +
-        P("default")       +
-        P("do")            +
-        P("double")        +
-        P("else")          +
-        P("enum")          +
-        P("extern")        +
-        P("false")         +
-        P("float")         +
-        P("for")           +
-        P("goto")          +
-        P("if")            +
-        P("inline")        +
-        P("int")           +
-        P("long")          +
-        P("nullptr")       +
-        P("register")      +
-        P("restrict")      +
-        P("return")        +
-        P("short")         +
-        P("signed")        +
-        P("sizeof")        +
-        P("static")        +
-        P("static_assert") +
-        P("struct")        +
-        P("switch")        +
-        P("thread_local")  +
-        P("true")          +
-        P("typedef")       +
-        P("typeof")        +
-        P("typeof")        +
-        P("_unqual")       +
-        P("union")         +
-        P("unsigned")      +
-        P("void")          +
-        P("volatile")      +
-        P("while")         +
-        P("_Atomic")       +
-        P("_BitInt")       +
-        P("_Complex")      +
-        P("_Decimal128")   +
-        P("_Decimal32")    +
-        P("_Decimal64")    +
-        P("_Generic")      +
-        P("_Imaginary")    +
-        P("_Noreturn")     +
-
-        -- custom keywords (soon to be more. Way more)
-        P("hyper"), 
-}) * clex.alphanumeric^-1     -- ensure that no alphanumeric characters follow after a match
+-- keyword      - 55ish keywords
+-- punctuator   - 49ish punctuators
+-- identifier
+-- constant
+-- string_literal
+-- unknown
+clex.token_types = {
+    ["keyword"]         = 1,
+    ["punctuator"]      = 2,
+    ["identifier"]      = 3,
+    ["constant"]        = 4,
+    ["string_literal"]  = 5,
+    ["unknown"]         = 6,
+}
 
 
 
 
+clex.keyword_list = {
+    ["alignas"]     = nil,
+    ["alignof"]     = nil,
+    ["auto"]        = nil,
+    ["bool"]        = nil,
+    ["break"]       = nil,
+    ["case"]        = nil,
+    ["char"]        = nil,
+    ["const"]       = nil,
+    ["constexpr"]   = nil,
+    ["continue"]    = nil,
+    ["default"]     = nil,
+    ["do"]          = nil,
+    ["double"]      = nil,
+    ["else"]        = nil,
+    ["enum"]        = nil,
+    ["extern"]      = nil,
+    ["false"]       = nil,
+    ["float"]       = nil,
+    ["for"]         = nil,
+    ["goto"]        = nil,
+    ["if"]          = nil,
+    ["inline"]      = nil,
+    ["int"]         = nil,
+    ["long"]        = nil,
+    ["nullptr"]     = nil,
+    ["register"]    = nil,
+    ["restrict"]    = nil,
+    ["return"]      = nil,
+    ["short"]       = nil,
+    ["signed"]      = nil,
+    ["sizeof"]      = nil,
+    ["static"]      = nil,
+    ["static_assert"] = nil,
+    ["struct"]      = nil,
+    ["switch"]      = nil,
+    ["thread_local"] = nil,
+    ["true"]        = nil,
+    ["typedef"]     = nil,
+    ["typeof"]      = nil,
+    ["typeof"]      = nil,
+    ["_unqual"]     = nil,
+    ["union"]       = nil,
+    ["unsigned"]    = nil,
+    ["void"]        = nil,
+    ["volatile"]    = nil,
+    ["while"]       = nil,
+    ["_Atomic"]     = nil,
+    ["_BitInt"]     = nil,
+    ["_Complex"]    = nil,
+    ["_Decimal128"] = nil,
+    ["_Decimal32"]  = nil,
+    ["_Decimal64"]  = nil,
+    ["_Generic"]    = nil,
+    ["_Imaginary"]  = nil,
+    ["_Noreturn"]   = nil,
+
+    -- custom keywords (soon to be more. Way more)
+    ["hyper"]       = nil,
+}
+
+
+
+clex.punctuator_list = {
+    ["..."] = nil,
+    ["<<="] = nil,
+    [">>="] = nil,
+    ["->"]  = nil,
+    ["++"]  = nil,
+    ["--"]  = nil,
+    ["<<"]  = nil,
+    [">>"]  = nil,
+    ["<="]  = nil,
+    [">="]  = nil,
+    ["=="]  = nil,
+    ["!="]  = nil,
+    ["&&"]  = nil,
+    ["||"]  = nil,
+    ["::"]  = nil,
+    ["*="]  = nil,
+    ["/="]  = nil,
+    ["%="]  = nil,
+    ["+="]  = nil,
+    ["-="]  = nil,
+    ["&="]  = nil,
+    ["^="]  = nil,
+    ["|="]  = nil,
+    ["##"]  = nil,
+    ["."]   = nil,
+    ["["]   = nil,
+    ["]"]   = nil,
+    ["("]   = nil,
+    [")"]   = nil,
+    ["{"]   = nil,
+    ["}"]   = nil,
+    ["&"]   = nil,
+    ["*"]   = nil,
+    ["+"]   = nil,
+    ["-"]   = nil,
+    ["~"]   = nil,
+    ["!"]   = nil,
+    ["/"]   = nil,
+    ["%"]   = nil,
+    ["<"]   = nil,
+    [">"]   = nil,
+    ["^"]   = nil,
+    ["|"]   = nil,
+    ["?"]   = nil,
+    [":"]   = nil,
+    [";"]   = nil,
+    ["="]   = nil,
+    [","]   = nil,
+    ["#"]   = nil,    -- diagraphs not included for now
+}
 
 
 
 
--- ordered by length, so that it tries the longest ones first
-clex.punctuator = lpeg.P({
-    "PUNCTUATOR",
-    PUNCTUATOR =
-        P("...") +
-        P("<<=") +
-        P(">>=") +
-        P("->")  +
-        P("++")  +
-        P("--")  +
-        P("<<")  +
-        P(">>")  +
-        P("<=")  +
-        P(">=")  +
-        P("==")  +
-        P("!=")  +
-        P("&&")  +
-        P("||")  +
-        P("::")  +
-        P("*=")  +
-        P("/=")  +
-        P("%=")  +
-        P("+=")  +
-        P("-=")  +
-        P("&=")  +
-        P("^=")  +
-        P("|=")  +
-        P("##")  +
-        P(".")   +
-        P("[")   +
-        P("]")   +
-        P("(")   +
-        P(")")   +
-        P("{")   +
-        P("}")   +
-        P("&")   +
-        P("*")   +
-        P("+")   +
-        P("-")   +
-        P("~")   +
-        P("!")   +
-        P("/")   +
-        P("%")   +
-        P("<")   +
-        P(">")   +
-        P("^")   +
-        P("|")   +
-        P("?")   +
-        P(":")   +
-        P(";")   +
-        P("=")   +
-        P(",")   +
-        P("#"),
-        -- diagraphs not included for now
-})
+clex.keyword = lpeg.P(false)
+
+local i = 1
+for key, _ in pairs(clex.keyword_list) do
+    clex.keyword_list[key] = i
+    clex.keyword = clex.keyword + P(key)
+    i = i + 1
+end
+
+-- ensure that no alphanumeric characters follow after a match
+clex.keyword = clex.keyword * clex.alphanumeric^-1
+
+
+
+
+
+clex.punctuator = lpeg.P(false)
+
+local i = 1
+-- longest ones added first to make sure they are matched with first
+for len = 3, 1, -1 do
+    for key, _ in pairs(clex.punctuator_list) do
+        clex.punctuator_list[key] = i
+        if #key == len then
+            clex.punctuator = clex.punctuator + P(key)
+        end
+        i = i + 1
+    end
+end
+
+-- ensure that no alphanumeric characters follow after a match
+clex.keyword = clex.keyword * clex.alphanumeric^-1
+
+
 
 
 
@@ -246,6 +294,23 @@ end
 
 
 
+-- clex.c_char = clex.source_char - P("'")  - P("\\") - P("\n") -- any char with these exceptions
+-- clex.s_char = clex.source_char - P("\"") - P("\\") - P("\n") -- any char with these exceptions
+
+-- clex.simple_escape = P("\\") * S("'\"?\\abfnrtv") 
+-- clex.octal_escape = P("\\") + clex.octal_digit * clex.octal_digit^-2
+-- clex.hex_escape = P("\\x") + clex.hex_digit^1
+-- clex.unichar = (P("\\u") + clex.hex_digit^4 - clex.hex_digit) + (P("\\U") + clex.hex_digit^8 - clex.hex_digit)
+-- clex.escape = clex.simple_escape + clex.octal_escape + clex.hex_escape + clex.unichar
+
+
+function unescaped(str)
+    return P(str) - B("\\")
+end
+
+clex.c_char = clex.source_char - (P("'" ) - B("\\")) - P("\n") --+ clex.escape -- - P("\\") 
+clex.s_char = clex.source_char - (P("\"") - B("\\")) - P("\n") --+ clex.escape -- - P("\\") 
+
 
 
 
@@ -254,8 +319,8 @@ clex.constant = lpeg.P({
     "CONSTANT",
 
 
-    CONSTANT = (V"INTEGER_CONSTANT"    * Cc"integer")    / pack_constant +
-               (V"FLOATING_CONSTANT"   * Cc"floating")   / pack_constant +
+    CONSTANT = (V"FLOATING_CONSTANT"   * Cc"floating")   / pack_constant +
+               (V"INTEGER_CONSTANT"    * Cc"integer")    / pack_constant +
                --V"ENUMERATION_CONSTANT" +
                (V"CHARACTER_CONSTANT"  * Cc"character")  / pack_constant +
                (V"PREDEFINED_CONSTANT" * Cc"predefined") / pack_constant,
@@ -271,7 +336,7 @@ clex.constant = lpeg.P({
     -- decimal is leading nonzero followed by zero or more digits
     -- octal is leading zero followed by one or more digits, etc.
     DECIMAL_CONSTANT     = clex.nonzero_digit * clex.digit^0,
-    OCTAL_CONSTANT       = P("0")             * clex.octal_digit^1,
+    OCTAL_CONSTANT       = P("0")             * clex.octal_digit^0,
     HEXADECIMAL_CONSTANT = clex.hex_prefix    * clex.hex_digit^1,
     BINARY_CONSTANT      = clex.binary_prefix * clex.binary_digit^1,
 
@@ -289,11 +354,12 @@ clex.constant = lpeg.P({
                                             V"BINARY_EXPONENT_PART") * C(V"FLOATING_SUFFIX"^-1),
 
 
-    -- set this later
+    -- set this later, maybe
     --ENUMERATION_CONSTANT = V("IDENTIFIER"),
 
 
-    CHARACTER_CONSTANT = (C(clex.encoding_prefix^-1) * P"'" * C(clex.c_char^1) * P"'") / pack_character,
+    CHARACTER_CONSTANT = (C(clex.encoding_prefix^-1) * (P("'") - B("\\")) * C(clex.c_char^1) *
+                         (P("'") - B("\\"))) / pack_character,
 
 
     PREDEFINED_CONSTANT = C(P("false") + P("true") + P("nullptr")) / pack_predefined,
@@ -313,11 +379,11 @@ clex.constant = lpeg.P({
     BINARY_EXPONENT_PART = S("pP") * clex.sign^-1 * clex.digit^1,
 
 
-    INTEGER_SUFFIX = S"uU" * (S"lL" + P"ll" + P"LL" + P"wb" + P"WB")^-1 + 
-                     (S"lL" + P"ll" + P"LL" + P"wb" + P"WB") * S"uU"^-1,
+    INTEGER_SUFFIX = S"uU" * (P"ll" + P"LL" + P"wb" + P"WB" + S"lL")^-1 + 
+                     (P"ll" + P"LL" + P"wb" + P"WB" + S"lL") * S"uU"^-1,
 
 
-    FLOATING_SUFFIX = S"flFL" + P"df" + P"dd" + P"dl" + P"DF" + P"DD" + P"DL",
+    FLOATING_SUFFIX = P"df" + P"dd" + P"dl" + P"DF" + P"DD" + P"DL" + S"flFL",
     
 })
 
@@ -363,13 +429,13 @@ clex.token = lpeg.P({
     TOKEN = (Cp() * V"PREPROCESSING_DIRECTIVE" * Cp() * Cc"preprocessing_directive") / pack_token +
             V("WHITESPACE") +
             V("COMMENT") +
-            ( Cp() * C(clex.keyword)    * Cp() * Cc"keywords"       ) / pack_token +
+            ( Cp() * C(clex.keyword)    * Cp() * Cc"keyword"       ) / pack_token +
             ( Cp() * V"IDENTIFIER"      * Cp() * Cc"identifier"     ) / pack_token +
             ( Cp() * clex.constant      * Cp() * Cc"constant"       ) / pack_token +
             ( Cp() * V"STRING_LITERAL"  * Cp() * Cc"string_literal" ) / pack_token +
             ( Cp() * C(clex.punctuator) * Cp() * Cc"punctuator"     ) / pack_token +
             -- ideally I dont want the lexer to fail. Let the parser handle it
-            ( Cp() * P(1)               * Cp() * Cc"unknown"        ) / pack_token,
+            ( Cp() * C(clex.alphanumeric^1 + P(1)) * Cp() * Cc"unknown" ) / pack_token,
             
             
             
@@ -381,7 +447,8 @@ clex.token = lpeg.P({
 
     -- TODO: I have half a mind to place the STRING_LITERAL in the constants section
     --       next to the character constant.
-    STRING_LITERAL = (C(clex.encoding_prefix^-1) * P"\"" * C(clex.s_char^0) * P"\"") / pack_string_literal,
+    STRING_LITERAL = (C(clex.encoding_prefix^-1) * (P("\"") - B("\\")) * C(clex.s_char^0) *
+                     (P("\"") - B("\\"))) / pack_string_literal,
 
 
     -- doesn't consume trailing newline
@@ -404,6 +471,7 @@ clex.token = lpeg.P({
     -- doesn't consume trailing newline
     -- will consume any newline preceeded by a backslash '\'
     -- must be preceeded by a newline with optional whitespace
+    -- TODO: This needs to be tested!
     PREPROCESSING_DIRECTIVE = P"\n" * (clex.whitespace - P"\n")^0 * 
                                   C(P"#" * (clex.whitespace - P"\n")^0 * ((1 - P"\n") + P"\\\n")) / 
                                       pack_preprocessing_directive * #P"\n",
@@ -458,9 +526,6 @@ clex.token = lpeg.P({
 
 
 
-
-
-
 clex.tokenlist = lpeg.P({
     "TOKENLIST",
 
@@ -468,6 +533,97 @@ clex.tokenlist = lpeg.P({
     TOKENLIST = Ct(clex.token^0) * P(-1),
     
 })
+
+
+
+
+-- there are 6 basic token types. 
+-- keyword      - 55ish keywords
+-- punctuator   - 49ish punctuators
+-- identifier
+-- constant
+-- string_literal
+-- unknown
+
+-- So that is more than a byte to encode. So, we just go with two bytes.
+
+-- Say. What if I didn't need the heavy overhead anyway? What if I didn't even need C for this?
+-- If I encode the tokenlist into bytes, I can just match with those bytes too like normal.
+
+string.char(...)
+
+
+
+clex.encode_token = function(token)
+    if clex.token_types[token.type] == nil then
+        error("invalid token")
+    end
+
+    if token.type == "keyword" then
+        return clex.token_type[token.type], clex.keyword_list[token.keyword]
+    elseif token.type = "punctuator" then
+        return clex.token_type[token.type], clex.punctuator_list[token.punctuator]
+    else
+        return clex.token_type[token.type], 0
+    end
+end
+
+
+
+clex.encode_token_list = function(tokens)
+    local buff = {}
+    for token in ipairs(tokens) do
+        local b1, b2 = clex.encode_token(token)
+        table.insert(buff, b1)
+        table.insert(buff, b2)
+    end
+    return string.char(table.unpack(buff))
+end
+
+
+clex.match = {}
+
+
+-- clex.match.keyword = Cmt( P(2), lhook_iskeyword )
+-- getmetatable(clex.match.keyword).__call = function(name) return lhook_keyword(name) end
+-- 
+-- 
+-- clex.match.identifier = P(
+--     
+-- )
+-- setmetatable(clex.match.identifier, {
+--     __call = function(name)
+-- 
+--     end
+-- })
+
+
+clex.match.keyword = P(string.char(clex.token_types.keyword)) * P(1)
+
+getmetatable(clex.match.keyword).__call = function(name)
+    return P(string.char(clex.token_types.keyword, clex.keyword_list[name]))
+end
+
+
+clex.match.punctuator = P(string.char(clex.token_types.punctuator)) * P(1)
+
+getmetatable(clex.match.keyword).__call = function(name)
+    return P(string.char(clex.token_types.punctuator, clex.punctuator_list[name]))
+end
+
+
+clex.match.constant       = P(string.char(clex.token_types.punctuator))     * P(1)
+clex.match.string_literal = P(string.char(clex.token_types.string_literal)) * P(1)
+clex.match.identifier     = P(string.char(clex.token_types.identifier))     * P(1)
+
+
+
+
+
+
+
+
+return clex
 
 
 
@@ -544,5 +700,125 @@ clex.tokenlist = lpeg.P({
 
 
 
+-- clex.keyword = lpeg.P({
+--     "KEYWORD",
+--     KEYWORD = 
+--         P("alignas")       +
+--         P("alignof")       +
+--         P("auto")          +
+--         P("bool")          +
+--         P("break")         +
+--         P("case")          +
+--         P("char")          +
+--         P("const")         +
+--         P("constexpr")     +
+--         P("continue")      +
+--         P("default")       +
+--         P("do")            +
+--         P("double")        +
+--         P("else")          +
+--         P("enum")          +
+--         P("extern")        +
+--         P("false")         +
+--         P("float")         +
+--         P("for")           +
+--         P("goto")          +
+--         P("if")            +
+--         P("inline")        +
+--         P("int")           +
+--         P("long")          +
+--         P("nullptr")       +
+--         P("register")      +
+--         P("restrict")      +
+--         P("return")        +
+--         P("short")         +
+--         P("signed")        +
+--         P("sizeof")        +
+--         P("static")        +
+--         P("static_assert") +
+--         P("struct")        +
+--         P("switch")        +
+--         P("thread_local")  +
+--         P("true")          +
+--         P("typedef")       +
+--         P("typeof")        +
+--         P("typeof")        +
+--         P("_unqual")       +
+--         P("union")         +
+--         P("unsigned")      +
+--         P("void")          +
+--         P("volatile")      +
+--         P("while")         +
+--         P("_Atomic")       +
+--         P("_BitInt")       +
+--         P("_Complex")      +
+--         P("_Decimal128")   +
+--         P("_Decimal32")    +
+--         P("_Decimal64")    +
+--         P("_Generic")      +
+--         P("_Imaginary")    +
+--         P("_Noreturn")     +
+-- 
+--         -- custom keywords (soon to be more. Way more)
+--         P("hyper"), 
+-- }) * clex.alphanumeric^-1     -- ensure that no alphanumeric characters follow after a match
 
-return clex;
+
+
+
+
+
+-- clex.punctuator = lpeg.P({
+--     "PUNCTUATOR",
+--     PUNCTUATOR =
+--         P("...") +
+--         P("<<=") +
+--         P(">>=") +
+--         P("->")  +
+--         P("++")  +
+--         P("--")  +
+--         P("<<")  +
+--         P(">>")  +
+--         P("<=")  +
+--         P(">=")  +
+--         P("==")  +
+--         P("!=")  +
+--         P("&&")  +
+--         P("||")  +
+--         P("::")  +
+--         P("*=")  +
+--         P("/=")  +
+--         P("%=")  +
+--         P("+=")  +
+--         P("-=")  +
+--         P("&=")  +
+--         P("^=")  +
+--         P("|=")  +
+--         P("##")  +
+--         P(".")   +
+--         P("[")   +
+--         P("]")   +
+--         P("(")   +
+--         P(")")   +
+--         P("{")   +
+--         P("}")   +
+--         P("&")   +
+--         P("*")   +
+--         P("+")   +
+--         P("-")   +
+--         P("~")   +
+--         P("!")   +
+--         P("/")   +
+--         P("%")   +
+--         P("<")   +
+--         P(">")   +
+--         P("^")   +
+--         P("|")   +
+--         P("?")   +
+--         P(":")   +
+--         P(";")   +
+--         P("=")   +
+--         P(",")   +
+--         P("#"),
+--         -- diagraphs not included for now
+-- })
