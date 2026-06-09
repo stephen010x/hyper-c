@@ -21,7 +21,7 @@ local lpeg = require "lpeg"
 local P, S, R, V, B   =  lpeg.P, lpeg.S, lpeg.R, lpeg.V, lpeg.B
 local C, Cb, Cc, Cf   =  lpeg.C, lpeg.Cb, lpeg.Cc, lpeg.Cf
 local Cg, Cp, Cs, Ct  =  lpeg.Cg, lpeg.Cp, lpeg.Cs, lpeg.Ct
-local Carg, Cmt       =  lpeg.Cart, lpeg.Cmt
+local Carg, Cmt       =  lpeg.Carg, lpeg.Cmt
 
 -- // For the C grammar rules:
 -- // https://port70.net/~nsz/c/c23/n3220.html#A
@@ -319,18 +319,20 @@ clex.constant = lpeg.P({
     "CONSTANT",
 
 
-    CONSTANT = (V"FLOATING_CONSTANT"   * Cc"floating")   / pack_constant +
-               (V"INTEGER_CONSTANT"    * Cc"integer")    / pack_constant +
-               --V"ENUMERATION_CONSTANT" +
-               (V"CHARACTER_CONSTANT"  * Cc"character")  / pack_constant +
-               (V"PREDEFINED_CONSTANT" * Cc"predefined") / pack_constant,
+    CONSTANT = 
+        (V"FLOATING_CONSTANT"   * Cc"floating")   / pack_constant +
+        (V"INTEGER_CONSTANT"    * Cc"integer")    / pack_constant +
+        --V"ENUMERATION_CONSTANT" +
+        (V"CHARACTER_CONSTANT"  * Cc"character")  / pack_constant +
+        (V"PREDEFINED_CONSTANT" * Cc"predefined") / pack_constant,
 
 
     -- optional integer suffix
-    INTEGER_CONSTANT = (C(V"DECIMAL_CONSTANT")     * C(V"INTEGER_SUFFIX"^-1) * Cc"decimal")     / pack_integer +
-                       (C(V"OCTAL_CONSTANT")       * C(V"INTEGER_SUFFIX"^-1) * Cc"octal")       / pack_integer +
-                       (C(V"HEXADECIMAL_CONSTANT") * C(V"INTEGER_SUFFIX"^-1) * Cc"hexadecimal") / pack_integer +
-                       (C(V"BINARY_CONSTANT")      * C(V"INTEGER_SUFFIX"^-1) * Cc"binary")      / pack_integer,
+    INTEGER_CONSTANT =
+        (C(V"DECIMAL_CONSTANT")     * C(V"INTEGER_SUFFIX"^-1) * Cc"decimal")     / pack_integer +
+        (C(V"OCTAL_CONSTANT")       * C(V"INTEGER_SUFFIX"^-1) * Cc"octal")       / pack_integer +
+        (C(V"HEXADECIMAL_CONSTANT") * C(V"INTEGER_SUFFIX"^-1) * Cc"hexadecimal") / pack_integer +
+        (C(V"BINARY_CONSTANT")      * C(V"INTEGER_SUFFIX"^-1) * Cc"binary")      / pack_integer,
 
 
     -- decimal is leading nonzero followed by zero or more digits
@@ -561,7 +563,7 @@ clex.encode_token = function(token)
 
     if token.type == "keyword" then
         return clex.token_type[token.type], clex.keyword_list[token.keyword]
-    elseif token.type = "punctuator" then
+    elseif token.type == "punctuator" then
         return clex.token_type[token.type], clex.punctuator_list[token.punctuator]
     else
         return clex.token_type[token.type], 0
@@ -616,6 +618,14 @@ clex.match.constant       = P(string.char(clex.token_types.punctuator))     * P(
 clex.match.string_literal = P(string.char(clex.token_types.string_literal)) * P(1)
 clex.match.identifier     = P(string.char(clex.token_types.identifier))     * P(1)
 
+
+clex.is_keyword = function(name)
+    return clex.keyword_list[name] ~= nil
+end
+
+clex.is_punctuator = function(name)
+    return clex.punctuator_list[name] ~= nil
+end
 
 
 
