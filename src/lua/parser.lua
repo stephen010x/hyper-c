@@ -38,7 +38,7 @@ function token(name)
     elseif clex.is_punctuator(name) then
         return punctuator(name)
     end
-    error("unknown token \"%s\"", name)
+    error(("unknown token \"%s\""):format(name))
 end
 
 local t = token
@@ -377,7 +377,7 @@ cpar.grammar = lpeg.P({
 
     STRUCT_OR_UNION_SPECIFIER = Cc"STRUCT_OR_UNION_SPECIFIER" * (
         Cc(1) * V"STRUCT_OR_UNION" * V"ATTRIBUTE_SPECIFIER"^0 * identifier^-1 *
-                tC"{" * V"MEMBER_DECLARATION_LIST" * tC"}" +
+                tC"{" * V"MEMBER_DECLARATION"^1 * tC"}" +
         Cc(2) * V"STRUCT_OR_UNION" * V"ATTRIBUTE_SPECIFIER"^0 * identifier
         ) / captNodeMode,
 
@@ -423,7 +423,7 @@ cpar.grammar = lpeg.P({
     ) / captNode,
 
     ENUMERATOR = Cc"ENUMERATOR" * (
-        V"ENUMERATION_CONSTANT" * V"ATTRIBUTE_SPECIFIER"^0 * ( tC"=" * V"CONSTANT_EXPRESSION" )^-1
+        identifier * V"ATTRIBUTE_SPECIFIER"^0 * ( tC"=" * V"CONSTANT_EXPRESSION" )^-1
         ) / captNode,
 
     ENUM_TYPE_SPECIFIER = Cc"ENUM_TYPE_SPECIFIER" * (
@@ -520,8 +520,8 @@ cpar.grammar = lpeg.P({
 
     DIRECT_ABSTRACT_DECLARATOR = Cc"DIRECT_ABSTRACT_DECLARATOR" * (
         Cc(1) * tC"(" * V"ABSTRACT_DECLARATOR" * tC")" +
-        Cc(2) * V"ARRAY_ABSTRACT_DECLARATOR" * "ATTRIBUTE_SPECIFIER"^0 +
-        Cc(3) * V"FUNCTION_ABSTRACT_DECLARATOR" * "ATTRIBUTE_SPECIFIER"^0
+        Cc(2) * V"ARRAY_ABSTRACT_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0 +
+        Cc(3) * V"FUNCTION_ABSTRACT_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0
         ) / captNodeMode,
 
     ARRAY_ABSTRACT_DECLARATOR = Cc"ARRAY_ABSTRACT_DECLARATOR" * (
@@ -564,7 +564,7 @@ cpar.grammar = lpeg.P({
         ) / captNodeMode,
 
     STATIC_ASSERT_DECLARATION = Cc"STATIC_ASSERT_DECLARATION" * (
-        V"STATIC_ASSERT" * tC"(" * V"CONSTANT_EXPRESSION" * ( tC"," * string_literal )^-1 * tC")" * tC";"
+        tC"static_assert" * tC"(" * V"CONSTANT_EXPRESSION" * ( tC"," * string_literal )^-1 * tC")" * tC";"
         ) / captNode,
 
     -- TODO: implement the old attribute syntax, not the new one.
@@ -624,7 +624,7 @@ cpar.grammar = lpeg.P({
         V"STATEMENT",
 
     LABEL = Cc"LABEL" * (
-        Cc(1) * V"ATTRIBUTE_SPECIFIER"^0 * V"IDENTIFIER" * tC":" +
+        Cc(1) * V"ATTRIBUTE_SPECIFIER"^0 * identifier * tC":" +
         Cc(2) * V"ATTRIBUTE_SPECIFIER"^0 * tC"case" * V"CONSTANT_EXPRESSION" * tC":" +
         Cc(3) * V"ATTRIBUTE_SPECIFIER"^0 * tC"default" * tC":"
         ) / captNodeMode,
@@ -663,7 +663,7 @@ cpar.grammar = lpeg.P({
         ) / captNodeMode,
 
     JUMP_STATEMENT = Cc"JUMP_STATEMENT" * (
-        Cc(1) * tC"goto" * V"IDENTIFIER" * tC";" +
+        Cc(1) * tC"goto" * identifier * tC";" +
         Cc(2) * tC"continue" * tC";" +
         Cc(3) * tC"break" * tC";" +
         Cc(4) * tC"return" * V"EXPRESSION"^-1 * tC";"
@@ -684,7 +684,7 @@ cpar.grammar = lpeg.P({
         V"EXTERNAL_DECLARATION"^0 * P(-1)
         ) / captNode,
 
-    EXTERNAL_DECLARAION = Cc"EXTERNAL_DECLARAION" * (
+    EXTERNAL_DECLARATION = Cc"EXTERNAL_DECLARATION" * (
         V"FUNCTION_DEFINITION" +
         V"DECLARATION"
         ) / captNode,

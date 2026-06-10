@@ -1,6 +1,7 @@
 -- local lex   = require "grammar/c"
-local lex    = require "lexer"
 local dtools = require "dtools"
+local lex    = require "lexer"
+local par    = require "parser"
 
 
 
@@ -24,3 +25,13 @@ for i, token in ipairs(tokens) do
     end
 end
 print(("NOTE: %d tokens were undefined"):format(undefc))
+
+
+local entok = lex.encode_token_list(tokens)
+
+-- print(dtools.print_table(, true, '\n', '\t'))
+
+local tree = par.translation_unit:match(entok)
+
+
+print(dtools.print_table(tree, true, '\n', '\t'))

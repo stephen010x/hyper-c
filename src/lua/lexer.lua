@@ -96,118 +96,118 @@ clex.token_types = {
 
 
 clex.keyword_list = {
-    ["alignas"]     = nil,
-    ["alignof"]     = nil,
-    ["auto"]        = nil,
-    ["bool"]        = nil,
-    ["break"]       = nil,
-    ["case"]        = nil,
-    ["char"]        = nil,
-    ["const"]       = nil,
-    ["constexpr"]   = nil,
-    ["continue"]    = nil,
-    ["default"]     = nil,
-    ["do"]          = nil,
-    ["double"]      = nil,
-    ["else"]        = nil,
-    ["enum"]        = nil,
-    ["extern"]      = nil,
-    ["false"]       = nil,
-    ["float"]       = nil,
-    ["for"]         = nil,
-    ["goto"]        = nil,
-    ["if"]          = nil,
-    ["inline"]      = nil,
-    ["int"]         = nil,
-    ["long"]        = nil,
-    ["nullptr"]     = nil,
-    ["register"]    = nil,
-    ["restrict"]    = nil,
-    ["return"]      = nil,
-    ["short"]       = nil,
-    ["signed"]      = nil,
-    ["sizeof"]      = nil,
-    ["static"]      = nil,
-    ["static_assert"] = nil,
-    ["struct"]      = nil,
-    ["switch"]      = nil,
-    ["thread_local"] = nil,
-    ["true"]        = nil,
-    ["typedef"]     = nil,
-    ["typeof"]      = nil,
-    ["typeof"]      = nil,
-    ["_unqual"]     = nil,
-    ["union"]       = nil,
-    ["unsigned"]    = nil,
-    ["void"]        = nil,
-    ["volatile"]    = nil,
-    ["while"]       = nil,
-    ["_Atomic"]     = nil,
-    ["_BitInt"]     = nil,
-    ["_Complex"]    = nil,
-    ["_Decimal128"] = nil,
-    ["_Decimal32"]  = nil,
-    ["_Decimal64"]  = nil,
-    ["_Generic"]    = nil,
-    ["_Imaginary"]  = nil,
-    ["_Noreturn"]   = nil,
+    ["alignas"]     = -1,
+    ["alignof"]     = -1,
+    ["auto"]        = -1,
+    ["bool"]        = -1,
+    ["break"]       = -1,
+    ["case"]        = -1,
+    ["char"]        = -1,
+    ["const"]       = -1,
+    ["constexpr"]   = -1,
+    ["continue"]    = -1,
+    ["default"]     = -1,
+    ["do"]          = -1,
+    ["double"]      = -1,
+    ["else"]        = -1,
+    ["enum"]        = -1,
+    ["extern"]      = -1,
+    ["false"]       = -1,
+    ["float"]       = -1,
+    ["for"]         = -1,
+    ["goto"]        = -1,
+    ["if"]          = -1,
+    ["inline"]      = -1,
+    ["int"]         = -1,
+    ["long"]        = -1,
+    ["nullptr"]     = -1,
+    ["register"]    = -1,
+    ["restrict"]    = -1,
+    ["return"]      = -1,
+    ["short"]       = -1,
+    ["signed"]      = -1,
+    ["sizeof"]      = -1,
+    ["static"]      = -1,
+    ["static_assert"] = -1,
+    ["struct"]      = -1,
+    ["switch"]      = -1,
+    ["thread_local"] = -1,
+    ["true"]        = -1,
+    ["typedef"]     = -1,
+    ["typeof"]      = -1,
+    ["typeof_unqual"] = -1,
+    ["_unqual"]     = -1,
+    ["union"]       = -1,
+    ["unsigned"]    = -1,
+    ["void"]        = -1,
+    ["volatile"]    = -1,
+    ["while"]       = -1,
+    ["_Atomic"]     = -1,
+    ["_BitInt"]     = -1,
+    ["_Complex"]    = -1,
+    ["_Decimal128"] = -1,
+    ["_Decimal32"]  = -1,
+    ["_Decimal64"]  = -1,
+    ["_Generic"]    = -1,
+    ["_Imaginary"]  = -1,
+    ["_Noreturn"]   = -1,
 
     -- custom keywords (soon to be more. Way more)
-    ["hyper"]       = nil,
+    ["hyper"]       = -1,
 }
 
 
 
 clex.punctuator_list = {
-    ["..."] = nil,
-    ["<<="] = nil,
-    [">>="] = nil,
-    ["->"]  = nil,
-    ["++"]  = nil,
-    ["--"]  = nil,
-    ["<<"]  = nil,
-    [">>"]  = nil,
-    ["<="]  = nil,
-    [">="]  = nil,
-    ["=="]  = nil,
-    ["!="]  = nil,
-    ["&&"]  = nil,
-    ["||"]  = nil,
-    ["::"]  = nil,
-    ["*="]  = nil,
-    ["/="]  = nil,
-    ["%="]  = nil,
-    ["+="]  = nil,
-    ["-="]  = nil,
-    ["&="]  = nil,
-    ["^="]  = nil,
-    ["|="]  = nil,
-    ["##"]  = nil,
-    ["."]   = nil,
-    ["["]   = nil,
-    ["]"]   = nil,
-    ["("]   = nil,
-    [")"]   = nil,
-    ["{"]   = nil,
-    ["}"]   = nil,
-    ["&"]   = nil,
-    ["*"]   = nil,
-    ["+"]   = nil,
-    ["-"]   = nil,
-    ["~"]   = nil,
-    ["!"]   = nil,
-    ["/"]   = nil,
-    ["%"]   = nil,
-    ["<"]   = nil,
-    [">"]   = nil,
-    ["^"]   = nil,
-    ["|"]   = nil,
-    ["?"]   = nil,
-    [":"]   = nil,
-    [";"]   = nil,
-    ["="]   = nil,
-    [","]   = nil,
-    ["#"]   = nil,    -- diagraphs not included for now
+    ["..."] = -1,
+    ["<<="] = -1,
+    [">>="] = -1,
+    ["->"]  = -1,
+    ["++"]  = -1,
+    ["--"]  = -1,
+    ["<<"]  = -1,
+    [">>"]  = -1,
+    ["<="]  = -1,
+    [">="]  = -1,
+    ["=="]  = -1,
+    ["!="]  = -1,
+    ["&&"]  = -1,
+    ["||"]  = -1,
+    ["::"]  = -1,
+    ["*="]  = -1,
+    ["/="]  = -1,
+    ["%="]  = -1,
+    ["+="]  = -1,
+    ["-="]  = -1,
+    ["&="]  = -1,
+    ["^="]  = -1,
+    ["|="]  = -1,
+    ["##"]  = -1,
+    ["."]   = -1,
+    ["["]   = -1,
+    ["]"]   = -1,
+    ["("]   = -1,
+    [")"]   = -1,
+    ["{"]   = -1,
+    ["}"]   = -1,
+    ["&"]   = -1,
+    ["*"]   = -1,
+    ["+"]   = -1,
+    ["-"]   = -1,
+    ["~"]   = -1,
+    ["!"]   = -1,
+    ["/"]   = -1,
+    ["%"]   = -1,
+    ["<"]   = -1,
+    [">"]   = -1,
+    ["^"]   = -1,
+    ["|"]   = -1,
+    ["?"]   = -1,
+    [":"]   = -1,
+    [";"]   = -1,
+    ["="]   = -1,
+    [","]   = -1,
+    ["#"]   = -1,    -- diagraphs not included for now
 }
 
 
@@ -231,9 +231,9 @@ clex.keyword = clex.keyword * clex.alphanumeric^-1
 
 clex.punctuator = lpeg.P(false)
 
-local i = 1
 -- longest ones added first to make sure they are matched with first
 for len = 3, 1, -1 do
+    local i = 1
     for key, _ in pairs(clex.punctuator_list) do
         clex.punctuator_list[key] = i
         if #key == len then
@@ -552,7 +552,6 @@ clex.tokenlist = lpeg.P({
 -- Say. What if I didn't need the heavy overhead anyway? What if I didn't even need C for this?
 -- If I encode the tokenlist into bytes, I can just match with those bytes too like normal.
 
-string.char(...)
 
 
 
@@ -600,16 +599,31 @@ clex.match = {}
 -- })
 
 
-clex.match.keyword = P(string.char(clex.token_types.keyword)) * P(1)
 
-getmetatable(clex.match.keyword).__call = function(name)
+
+-- clex.match.keyword = P(string.char(clex.token_types.keyword)) * P(1)
+ 
+-- local meta = getmetatable(clex.match.keyword)
+-- local dtools = require "dtools"
+-- print(dtools.print_table(meta, true, '\n', '\t'))
+
+
+-- getmetatable(clex.match.keyword).__call = function(_, name)
+clex.match.keyword = function(name)
+    if not clex.is_keyword(name) then
+        error(("\"%s\" not a recognized keyword"):format(name), 2)
+    end
     return P(string.char(clex.token_types.keyword, clex.keyword_list[name]))
 end
 
 
-clex.match.punctuator = P(string.char(clex.token_types.punctuator)) * P(1)
+-- clex.match.punctuator = P(string.char(clex.token_types.punctuator)) * P(1)
 
-getmetatable(clex.match.keyword).__call = function(name)
+-- getmetatable(clex.match.punctuator).__call = function(_, name)
+clex.match.punctuator = function(name)
+    if not clex.is_punctuator(name) then
+        error(("\"%s\" not a recognized punctuator"):format(name), 2)
+    end
     return P(string.char(clex.token_types.punctuator, clex.punctuator_list[name]))
 end
 
@@ -620,13 +634,12 @@ clex.match.identifier     = P(string.char(clex.token_types.identifier))     * P(
 
 
 clex.is_keyword = function(name)
-    return clex.keyword_list[name] ~= nil
+    return (clex.keyword_list[name] or 0) > 0
 end
 
 clex.is_punctuator = function(name)
-    return clex.punctuator_list[name] ~= nil
+    return (clex.punctuator_list[name] or 0) > 0
 end
-
 
 
 
