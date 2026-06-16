@@ -561,11 +561,11 @@ clex.encode_token = function(token)
     end
 
     if token.type == "keyword" then
-        return clex.token_type[token.type], clex.keyword_list[token.keyword]
+        return clex.token_types[token.type], clex.keyword_list[token.keyword]
     elseif token.type == "punctuator" then
-        return clex.token_type[token.type], clex.punctuator_list[token.punctuator]
+        return clex.token_types[token.type], clex.punctuator_list[token.punctuator]
     else
-        return clex.token_type[token.type], 0
+        return clex.token_types[token.type], 0
     end
 end
 
@@ -573,12 +573,12 @@ end
 
 clex.encode_token_list = function(tokens)
     local buff = {}
-    for token in ipairs(tokens) do
+    for _, token in ipairs(tokens) do
         local b1, b2 = clex.encode_token(token)
         table.insert(buff, b1)
         table.insert(buff, b2)
     end
-    return string.char(table.unpack(buff))
+    return string.char(unpack(buff))
 end
 
 

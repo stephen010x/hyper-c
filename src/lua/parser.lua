@@ -51,7 +51,7 @@ local t = token
 
 
 function tokenCapture(name)
-    return Cp() * token(name) / function(pos) return pos/2 end
+    return Cp() * token(name) / function(pos) return (pos+1)/2 end
 end
 
 local tC = tokenCapture
@@ -156,14 +156,16 @@ cpar.grammar = lpeg.P({
     --     )^1
 
     POSTFIX_EXPRESSION = Cc"POSTFIX_EXPRESSION" * (
-        V"POSTFIX_EXPRESSION" * (
-                tC"[" * V"EXPRESSION" * tC"]" +
-                tC"(" * V"ARGUMENT_EXPRESSION_LIST"^-1 * tC")" +
-                tC"." * identifier +
-                tC"->" * identifier +
-                tC"++" +
-                tC"--"
-        )) / captNode +
+        V"COMPOUND_LITERAL" +
+        V"PRIMARY_EXPRESSION"
+        ) * (
+        tC"[" * V"EXPRESSION" * tC"]" +
+        tC"(" * V"ARGUMENT_EXPRESSION_LIST"^-1 * tC")" +
+        tC"." * identifier +
+        tC"->" * identifier +
+        tC"++" +
+        tC"--"
+        )^1 / captNode +
         V"COMPOUND_LITERAL" +
         V"PRIMARY_EXPRESSION",
 
@@ -199,65 +201,65 @@ cpar.grammar = lpeg.P({
         V"UNARY_EXPRESSION",
 
     MULTIPLICATIVE_EXPRESSION = Cc"MULTIPLICATIVE_EXPRESSION" * (
-        V"MULTIPLICATIVE_EXPRESSION" * (
-                tC"*" * V"CAST_EXPRESSION" +
-                tC"/" * V"CAST_EXPRESSION" +
-                tC"%" * V"CAST_EXPRESSION"
-        )) / captNode +
+        V"CAST_EXPRESSION" * (
+        tC"*" * V"CAST_EXPRESSION" +
+        tC"/" * V"CAST_EXPRESSION" +
+        tC"%" * V"CAST_EXPRESSION"
+        )^1 ) / captNode +
         V"CAST_EXPRESSION",
 
     ADDITIVE_EXPRESSION = Cc"ADDITIVE_EXPRESSION" * (
-        V"ADDITIVE_EXPRESSION" * (
-                tC"+" * V"MULTIPLICATIVE_EXPRESSION" +
-                tC"-" * V"MULTIPLICATIVE_EXPRESSION"
-        )) / captNode +
+        V"MULTIPLICATIVE_EXPRESSION" * (
+        tC"+" * V"MULTIPLICATIVE_EXPRESSION" +
+        tC"-" * V"MULTIPLICATIVE_EXPRESSION"
+        )^1 ) / captNode +
         V"MULTIPLICATIVE_EXPRESSION",
 
     SHIFT_EXPRESSION = Cc"SHIFT_EXPRESSION" * (
-        V"SHIFT_EXPRESSION" * (
-                tC"<<" * V"ADDITIVE_EXPRESSION" +
-                tC">>" * V"ADDITIVE_EXPRESSION"
-        )) / captNode +
+        V"ADDITIVE_EXPRESSION" * (
+        tC"<<" * V"ADDITIVE_EXPRESSION" +
+        tC">>" * V"ADDITIVE_EXPRESSION"
+        )^1 ) / captNode +
         V"ADDITIVE_EXPRESSION",
 
     RELATIONAL_EXPRESSION = Cc"RELATIONAL_EXPRESSION" * (
-        V"RELATIONAL_EXPRESSION" * (
-                tC"<" * V"SHIFT_EXPRESSION" +
-                tC">" * V"SHIFT_EXPRESSION" +
-                tC"<=" * V"SHIFT_EXPRESSION" +
-                tC">=" * V"SHIFT_EXPRESSION"
-        )) / captNode +
+        V"SHIFT_EXPRESSION" * (
+        tC"<" * V"SHIFT_EXPRESSION" +
+        tC">" * V"SHIFT_EXPRESSION" +
+        tC"<=" * V"SHIFT_EXPRESSION" +
+        tC">=" * V"SHIFT_EXPRESSION"
+        )^1 ) / captNode +
         V"SHIFT_EXPRESSION",
 
     EQUALITY_EXPRESSION = Cc"EQUALITY_EXPRESSION" * (
-        V"EQUALITY_EXPRESSION" * (
-                tC"==" * V"RELATIONAL_EXPRESSION" +
-                tC"!=" * V"RELATIONAL_EXPRESSION"
-        )) / captNode +
+        V"RELATIONAL_EXPRESSION" * (
+        tC"==" * V"RELATIONAL_EXPRESSION" +
+        tC"!=" * V"RELATIONAL_EXPRESSION"
+        )^1 ) / captNode +
         V"RELATIONAL_EXPRESSION",
 
     AND_EXPRESSION = Cc"AND_EXPRESSION" * (
-        V"AND_EXPRESSION" * tC"&" * V"EQUALITY_EXPRESSION"
+        V"EQUALITY_EXPRESSION" * ( tC"&" * V"EQUALITY_EXPRESSION" )^1
         ) / captNode +
         V"EQUALITY_EXPRESSION",
 
     EXCLUSIVE_OR_EXPRESSION = Cc"EXCLUSIVE_OR_EXPRESSION" * (
-        V"EXCLUSIVE_OR_EXPRESSION" * tC"^" * V"AND_EXPRESSION"
+        V"AND_EXPRESSION" * ( tC"^" * V"AND_EXPRESSION" )^1
         ) / captNode +
         V"AND_EXPRESSION",
 
     INCLUSIVE_OR_EXPRESSION = Cc"INCLUSIVE_OR_EXPRESSION" * (
-        V"INCLUSIVE_OR_EXPRESSION" * tC"|" * V"EXCLUSIVE_OR_EXPRESSION"
+        V"EXCLUSIVE_OR_EXPRESSION" * ( tC"|" * V"EXCLUSIVE_OR_EXPRESSION" )^1
         ) / captNode +
         V"EXCLUSIVE_OR_EXPRESSION",
 
     LOGICAL_AND_EXPRESSION = Cc"LOGICAL_AND_EXPRESSION" * (
-        V"LOGICAL_AND_EXPRESSION" * tC"&&" * V"INCLUSIVE_OR_EXPRESSION"
+        V"INCLUSIVE_OR_EXPRESSION" * ( tC"&&" * V"INCLUSIVE_OR_EXPRESSION" )^1
         ) / captNode +
         V"INCLUSIVE_OR_EXPRESSION",
 
     LOGICAL_OR_EXPRESSION = Cc"LOGICAL_OR_EXPRESSION" * (
-        V"LOGICAL_OR_EXPRESSION" * tC"||" * V"LOGICAL_AND_EXPRESSION"
+        V"LOGICAL_AND_EXPRESSION" * ( tC"||" * V"LOGICAL_AND_EXPRESSION" )^1
         ) / captNode +
         V"LOGICAL_AND_EXPRESSION",
 
@@ -468,14 +470,28 @@ cpar.grammar = lpeg.P({
         V"POINTER"^-1 * V"DIRECT_DECLARATOR"
         ) / captNode,
 
+    -- DIRECT_DECLARATOR = Cc"DIRECT_DECLARATOR" * (
+    --     Cc(1) * identifier * V"ATTRIBUTE_SPECIFIER"^0 +
+    --     Cc(2) * tC"(" * V"DECLARATOR" * tC")" +
+    --     Cc(3) * V"FUNCTION_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0
+    --     ) / captNodeMode,
+
     DIRECT_DECLARATOR = Cc"DIRECT_DECLARATOR" * (
+        (
         Cc(1) * identifier * V"ATTRIBUTE_SPECIFIER"^0 +
-        Cc(2) * tC"(" * V"DECLARATOR" * tC")" +
-        Cc(3) * V"FUNCTION_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0
+        Cc(2) * tC"(" * V"DECLARATOR" * tC")"
+        ) * (
+        V"ARRAY_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0 +
+        V"FUNCTION_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0
+        )^1
         ) / captNodeMode,
 
+    -- ARRAY_DECLARATOR = Cc"ARRAY_DECLARATOR" * (
+    --     V"DIRECT_DECLARATOR" * tC"[" * V"ARRAY_DECLARATOR_INNER" * tC"]"
+    --     ) / captNode,
+
     ARRAY_DECLARATOR = Cc"ARRAY_DECLARATOR" * (
-        V"DIRECT_DECLARATOR" * tC"[" * V"ARRAY_DECLARATOR_INNER" * tC"]"
+        tC"[" * V"ARRAY_DECLARATOR_INNER" * tC"]"
         ) / captNode,
 
     ARRAY_DECLARATOR_INNER = Cc"ARRAY_DECLARATOR_INNER" * (
@@ -485,8 +501,12 @@ cpar.grammar = lpeg.P({
         Cc(4) * V"TYPE_QUALIFIER"^0 * tC"*"
         ) / captNodeMode,
 
+    -- FUNCTION_DECLARATOR = Cc"FUNCTION_DECLARATOR" * (
+    --     V"DIRECT_DECLARATOR" * tC"(" * V"PARAMETER_TYPE_LIST"^-1 * tC")"
+    --     ) / captNode,
+
     FUNCTION_DECLARATOR = Cc"FUNCTION_DECLARATOR" * (
-        V"DIRECT_DECLARATOR" * tC"(" * V"PARAMETER_TYPE_LIST"^-1 * tC")"
+        tC"(" * V"PARAMETER_TYPE_LIST"^-1 * tC")"
         ) / captNode,
 
     POINTER = Cc"POINTER" * (
@@ -518,14 +538,24 @@ cpar.grammar = lpeg.P({
         Cc(2) * V"POINTER"
         ) / captNodeMode,
 
+    -- DIRECT_ABSTRACT_DECLARATOR = Cc"DIRECT_ABSTRACT_DECLARATOR" * (
+    --     Cc(1) * tC"(" * V"ABSTRACT_DECLARATOR" * tC")" +
+    --     Cc(2) * V"ARRAY_ABSTRACT_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0 +
+    --     Cc(3) * V"FUNCTION_ABSTRACT_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0
+    --     ) / captNodeMode,
+
     DIRECT_ABSTRACT_DECLARATOR = Cc"DIRECT_ABSTRACT_DECLARATOR" * (
-        Cc(1) * tC"(" * V"ABSTRACT_DECLARATOR" * tC")" +
-        Cc(2) * V"ARRAY_ABSTRACT_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0 +
-        Cc(3) * V"FUNCTION_ABSTRACT_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0
-        ) / captNodeMode,
+        ( tC"(" * V"ABSTRACT_DECLARATOR" * tC")" )^-1 * (
+            V"ARRAY_ABSTRACT_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0 +
+            V"FUNCTION_ABSTRACT_DECLARATOR" * V"ATTRIBUTE_SPECIFIER"^0
+            )^1 ) / captNode,
+
+    -- ARRAY_ABSTRACT_DECLARATOR = Cc"ARRAY_ABSTRACT_DECLARATOR" * (
+    --     V"DIRECT_ABSTRACT_DECLARATOR"^-1 * tC"[" * V"ARRAY_ABSTRACT_DECLARATOR_INNER" * tC"]"
+    --     ) / captNode,
 
     ARRAY_ABSTRACT_DECLARATOR = Cc"ARRAY_ABSTRACT_DECLARATOR" * (
-        V"DIRECT_ABSTRACT_DECLARATOR"^-1 * tC"[" * V"ARRAY_ABSTRACT_DECLARATOR_INNER" * tC"]"
+        tC"[" * V"ARRAY_ABSTRACT_DECLARATOR_INNER" * tC"]"
         ) / captNode,
 
     ARRAY_ABSTRACT_DECLARATOR_INNER = Cc"ARRAY_ABSTRACT_DECLARATOR_INNER" * (
@@ -535,8 +565,12 @@ cpar.grammar = lpeg.P({
         Cc(4) * tC"*"
         ) / captNodeMode,
 
+    -- FUNCTION_ABSTRACT_DECLARATOR = Cc"FUNCTION_ABSTRACT_DECLARATOR" * (
+    --     V"DIRECT_ABSTRACT_DECLARATOR"^-1 * tC"(" * V"PARAMETER_TYPE_LIST"^-1 * tC")"
+    --     ) / captNode,
+
     FUNCTION_ABSTRACT_DECLARATOR = Cc"FUNCTION_ABSTRACT_DECLARATOR" * (
-        V"DIRECT_ABSTRACT_DECLARATOR"^-1 * tC"(" * V"PARAMETER_TYPE_LIST"^-1 * tC")"
+        tC"(" * V"PARAMETER_TYPE_LIST"^-1 * tC")"
         ) / captNode,
 
     TYPEDEF_NAME =
@@ -685,9 +719,10 @@ cpar.grammar = lpeg.P({
         ) / captNode,
 
     EXTERNAL_DECLARATION = Cc"EXTERNAL_DECLARATION" * (
-        V"FUNCTION_DEFINITION" +
-        V"DECLARATION"
-        ) / captNode,
+        Cc(1) * V"FUNCTION_DEFINITION" +
+        Cc(2) * V"DECLARATION" +
+        Cc(-1) * (Cp() * P(2) / function(pos) return (pos+1)/2 end)
+        ) / captNodeMode,
 
     FUNCTION_DEFINITION = Cc"FUNCTION_DEFINITION" * (
         V"ATTRIBUTE_SPECIFIER"^0 * V"DECLARATION_SPECIFIERS" * V"DECLARATOR" *
