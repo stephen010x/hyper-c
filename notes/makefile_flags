@@ -1,0 +1,150 @@
+#!/bin/make
+
+
+CWARNS := -Wall -Wextra -pedantic \
+	-Wdeclaration-after-statement \
+	-Waggregate-return \
+	-Wcast-align \
+	-Wcast-qual \
+	-Wdisabled-optimization \
+	-Wpointer-arith \
+	-Wshadow \
+	-Wredundant-decls \
+	-Wsign-compare \
+	-Wundef \
+	-Wwrite-strings \
+	-Wbad-function-cast \
+	-Wmissing-prototypes \
+	-Wmissing-declarations \
+	-Wnested-externs \
+	-Wstrict-prototypes \
+	-Wunreachable-code \
+	-Wno-multichar
+	# -Wno-macro-redefined 
+
+
+# O3-Os
+	-fgcse-after-reload
+	-floop-interchange
+	-fpeel-loops --param max-peel-times=1
+	-fpredictive-commoning
+	-ftree-loop-distribution
+	-ftree-partial-pre
+	-fvect-cost-model=dynamic
+	# -fipa-cp-clone
+	# -floop-unroll-and-jam
+	# -fsplit-loops
+	# -fsplit-paths
+	# -funswitch-loops
+	# -fversion-loops-for-strides
+
+# O2-Os
+	-fprefetch-loop-arrays
+	-freorder-blocks-algorithm=stc
+	# -falign-functions
+	# -falign-jumps
+	# -falign-labels
+	# -falign-loops
+
+# Ofast-Os
+	# -ffast-math
+	# -fallow-store-data-races
+	-fno-protect-parens
+	-fno-semantic-interposition
+
+# None
+	# -funroll-loops --param max-unroll-times=4
+	# -fmerge-all-constants
+	# -finline-limit=n
+	-fipa-pta
+	-fmodulo-sched
+	-fmodulo-sched-allow-regmoves
+	-fgcse-lm
+	-fgcse-sm
+	-fgcse-las
+	-fno-zero-initialized-in-bss
+	-finline-stringops
+	-fno-stack-protector
+	-fstack-check=no
+	-fno-stack-clash-protection
+	-fcf-protection=none
+	-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
+	-fno-asynchronous-unwind-tables
+	-fno-unwind-tables
+	-fno-ident
+	# -fpeel-loops --param max-completely-peel-times=4 --param max-peel-times=2
+	# -fpeel-loops
+	# -funroll-loops
+
+# linker
+	-flto=auto
+	-Wl,-z,stack-size=N
+	-Wl,-z norelro
+	-Wl,-z,lazy
+	-Wl,-z,max-page-size=4096
+	-shared-libgcc
+	-Wl,--build-id=none
+	-Wl,--relax
+	-Wl,-z,common-page-size=4096
+	-Wl,-z,noseparate-code
+
+# debugging
+	ftrivial-auto-var-init=pattern
+	-fsanitize=address
+	-fsanitize=undefined
+	-fsanitize=thread
+	-fsanitize=leak
+	-Wl,--no-undefined
+	-g3
+	-fstack-protector-all
+	-fanalyzer
+
+# -Ofast, except biasing towards more compact code
+OSMALL := -Os \
+	-fgcse-after-reload \
+	-floop-interchange \
+	-fpredictive-commoning \
+	-ftree-loop-distribution \
+	-ftree-partial-pre \
+	-fvect-cost-model=dynamic \
+	
+	-fprefetch-loop-arrays \
+	-freorder-blocks-algorithm=stc \
+	-ffast-math \
+	# -fipa-cp-clone \
+	# -falign-functions \
+	# -falign-jumps \
+	# -falign-labels \
+	# -falign-loops
+
+
+COPTIM := -Os \
+	-flto \
+	-fno-pic \
+	-fno-ident \
+	-fno-exceptions \
+	-fvisibility=hidden \
+	-fdata-sections \
+	-ffunction-sections \
+	-fno-asynchronous-unwind-tables \
+	-fno-unwind-tables \
+	-fomit-frame-pointer \
+	-fno-fat-lto-objects \
+	-floop-nest-optimize \
+	-fno-stack-protector \
+	-fcf-protection=none \
+	-fomit-frame-pointer \
+	#-march=native
+
+LOPTIM := -Os -s -g0 \
+	-flto \
+	-no-pie \
+	-Wl,--gc-sections \
+	-Wl,--print-gc-sections \
+	-Wl,--as-needed \
+	-Wl,--no-export-dynamic \
+	-Wl,-O2
+
+
+
+# IMPORTANT!!! Claude did a lot of test. And it came to the conclusion that reguardless of what extra flags I add alongside -Os, it induces a code size restraint that overules any flags I add, and will reject optimizations that significantly increase the code size.

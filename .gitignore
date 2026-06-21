@@ -1,6 +1,9 @@
-tmp
-bin
+/tmp/
+/_tmp_/
+/__tmp__/
+/bin/
+/old/
 *.log
 *.o
 *.d
-perf.data
+*.elf
