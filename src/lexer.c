@@ -1,6 +1,81 @@
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 #include "lexer.h"
+#include "toolbox/debug.h"
+
+#ifdef __OPTIMIZE_SIZE__
+#undef __inline__
+#define __inline__ static inline
+#endif
+
+
+// #ifdef __OPTIMIZE__
+// #define __fold_switch __optimize("-ftree-switch-conversion", "-fipa-cp")
+// #else
+// #define __fold_switch __optimize("O1", "-ftree-switch-conversion", "-fipa-cp")
+// #endif
+
+
+
+
+static void parse_linemarker(clexstate_t *restrict state);
+static void next_token_string_literal(clexstate_t *restrict state, token_t *restrict token, uint8_t mode);
+static void next_token_numeric(clexstate_t *restrict state, token_t *restrict token);
+static void next_token_num_hex(clexstate_t *restrict state, token_t *restrict token);
+static void next_token_num_misc(clexstate_t *restrict state, token_t *restrict token);
+static void next_token_num_bin(clexstate_t *restrict state, token_t *restrict token);
+static void next_token_identifier(clexstate_t *restrict state, token_t *restrict token);
+static void next_token_punctuator(clexstate_t *restrict state, token_t *restrict token);
+static __noreturn void lex_error(clexstate_t *state, const char *fmt, ...);
+
+
+
+
+
+// inlined functions
+static size_t reader_next(clexstate_t *state, int n);
+static char read(clexstate_t *state, int index);
+static size_t token_start(clexstate_t *state);
+static size_t token_end(clexstate_t *state);
+static void token_setup(clexstate_t *state, token_t *token, uint8_t type, uint8_t tid, uint16_t flags);
+static char _nib2char(uint8_t n);
+static const char *cchar(char c);
+// static bool _bcmp(const char *restrict str1, const char *restrict str2, int len);
+static bool fcmp(const char *restrict str1, const char *restrict str2, int len);
+static bool is_slcomment(const char *c);
+static bool is_mlcomment(const char *c);
+static int8_t is_encoding_prefix(const char *c);
+static bool is_sstring(const char *c);
+static bool is_cstring(const char *c);
+static bool is_schar(const char *c, bool escape);
+static bool is_cchar(const char *c, bool escape);
+static bool is_comment(const char *c);
+static bool is_truenewline(const char *buff, size_t index);
+static bool is_dec_digit(unsigned char c);
+static bool is_hex_digit(unsigned char c);
+static bool is_oct_digit(unsigned char c);
+static bool is_bin_digit(unsigned char c);
+static bool is_sign(char c);
+// static char to_uppercase(char c);
+// static char to_lowercase(char c);
+static int8_t is_floating_suffix(const char *c);
+// static bool skip_whitespace(clexstate_t *state);
+// static void skip_slcomment(clexstate_t *state);
+// static void skip_mlcomment(clexstate_t *state);
+static void consume_hex_exponent(clexstate_t *state);
+static void consume_exponent(clexstate_t *state);
+static token_flags_t consume_floating_suffix(clexstate_t *state);
+static token_flags_t consume_integer_suffix(clexstate_t *state);
+static bool consume_dec_digit(clexstate_t *state);
+static bool consume_hex_digit(clexstate_t *state);
+static bool consume_oct_digit(clexstate_t *state);
+static bool consume_bin_digit(clexstate_t *state);
+static bool consume_alphanumeric(clexstate_t *state);
+
+
 
 
 const bool whitespace_map[256] = {
@@ -50,17 +125,16 @@ const bool punctuator_map[256] = {
         ['|'] = true,
         ['}'] = true,
         ['~'] = true,
-}
+};
 
 
 
-const uint8_t source_map[256] = {
+const bool source_map[256] = {
     //[0 ... 255] = 0,
     ['0' ... '9'] = true,
     ['a' ... 'z'] = true,
     ['A' ... 'Z'] = true,
     ['_']  = true,
-    ["_"]  = true,
     ['{']  = true,
     ['}']  = true,
     ['[']  = true,
@@ -128,7 +202,7 @@ const uint8_t source_map[256] = {
 //     ['x'] = ['X'],
 //     ['y'] = ['Y'],
 //     ['z'] = ['Z'],
-// }
+// };
 // 
 // const char lowercase_map[256] = {
 //      ['A'] = ['a'],
@@ -157,7 +231,61 @@ const uint8_t source_map[256] = {
 //      ['X'] = ['x'],
 //      ['Y'] = ['y'],
 //      ['Z'] = ['z'],
-// }
+// };
+
+
+
+
+
+
+__inline__ size_t reader_next(clexstate_t *state, int n) {
+    int i;
+    for (i = 0; state->buff[state->index+i] && (i < n); i++) {
+        if (state->buff[state->index] == '\n') {
+            state->line++;
+            state->line_index = state->index;
+            state->column = 0;
+        } else {
+            state->column++;
+        }
+    }
+    // for (int i = 0; i > n; i--) {
+    //     if (state->buff[state->index[0]] == '\n') {
+    //         state->line--;
+    //         state->column = -1;
+    //     } else {
+    //         state->column--;
+    //     }
+    // }
+    return (state->index += i);
+}
+
+
+
+
+TODO
+__finish __inline__ char read(clexstate_t *state, int index) {(void)state; (void)index; return 0;}
+__finish __inline__ size_t token_start(clexstate_t *state) {(void)state; return 0;}
+__finish __inline__ size_t token_end(clexstate_t *state) {(void)state; return 0;}
+
+
+
+TODO
+__finish __inline__ void token_setup(clexstate_t *state, token_t *token, uint8_t type, uint8_t tid, uint16_t flags) {
+    (void)state; (void)token; (void)type; (void)tid; (void)flags;
+    #if 0
+    *token = (token_t){
+        .start  = state->buff + state->token_start,
+        .len    = state->index - state->token_start,
+        .line   = state->line,
+        .column = state->column,
+        .type   = type,
+        .tid    = tid,
+        .flags  = flags,
+    };
+    #endif
+}
+
 
 
 
@@ -188,19 +316,71 @@ __inline__ const char *cchar(char c) {
 
 
 
-__inline__ bool _bcmp(const char *restrict str1, const char *restrict str2, int len) {
+#if 0
+#ifdef __OPTIMIZE__
+__force_inline bool _bcmp(const char *restrict str1, const char *restrict str2, int len)
+#else
+static bool _bcmp(const char *restrict str1, const char *restrict str2, int len)
+#endif
+{
     switch (len) {
         case 1:  return str1[0] == str2[0];
-        case 2:  return *(int16_t*)&str1[0] == *(int16_t*)&str2[0];
-        case 4:  return *(int32_t*)&str1[0] == *(int32_t*)&str2[0];
-        case 8:  return *(int64_t*)&str1[0] == *(int64_t*)&str2[0];
+        case 2:  return *(const int16_t*)&str1[0] == *(const int16_t*)&str2[0];
+        case 4:  return *(const int32_t*)&str1[0] == *(const int32_t*)&str2[0];
+        case 8:  return *(const int64_t*)&str1[0] == *(const int64_t*)&str2[0];
         default: exit(1);
     }
 }
+#endif
 
 
 
-__inline__ bool fcmp(const char *restrict str1, const char *restrict str2, int len) {
+// __inline__ __fold_switch bool _fcmp1(const char *restrict str1, const char *restrict str2, int len) {
+//     switch (len) {
+//         case 0:  return true;
+//         case 1:  return _bcmp(str1, str2, 1);
+//         case 2:  return _bcmp(str1, str2, 2);
+//         case 3:  return _bcmp(str1, str2, 2) && _bcmp(str1+2, str2+2, 1);
+//         case 4:  return _bcmp(str1, str2, 4);
+//         case 5:  return _bcmp(str1, str2, 4) && _bcmp(str1+4, str2+4, 1);
+//         case 6:  return _bcmp(str1, str2, 4) && _bcmp(str1+4, str2+4, 2);
+//     }
+// }
+// 
+// 
+// 
+// __inline__ __fold_switch bool _fcmp(const char *restrict str1, const char *restrict str2, int len) {
+//     switch (len) {
+//         case 0:  return true;
+//         case 1:  return _bcmp(str1, str2, 1);
+//         case 2:  return _bcmp(str1, str2, 2);
+//         case 3:  return _bcmp(str1, str2, 2) &&  _bcmp(str1+2, str2+2, 1);
+//         case 4:  return _bcmp(str1, str2, 4);
+//         case 5:  return _bcmp(str1, str2, 4) &&  _bcmp(str1+4, str2+4, 1);
+//         case 6:  return _bcmp(str1, str2, 4) &&  _bcmp(str1+4, str2+4, 2);
+//         case 7:  return _bcmp(str1, str2, 4) && _fcmp1(str1+4, str2+4, 3);
+//         case 8:  return _bcmp(str1, str2, 8);
+//         case 9:  return _bcmp(str1, str2, 8) &&  _bcmp(str1+8, str2+8, 1);
+//         case 10: return _bcmp(str1, str2, 8) &&  _bcmp(str1+8, str2+8, 2);
+//         case 11: return _bcmp(str1, str2, 8) && _fcmp1(str1+8, str2+8, 3);
+//         case 12: return _bcmp(str1, str2, 8) &&  _bcmp(str1+8, str2+8, 4);
+//         case 13: return _bcmp(str1, str2, 8) && _fcmp1(str1+8, str2+8, 5);
+//         case 14: return _bcmp(str1, str2, 8) && _fcmp1(str1+8, str2+8, 6);
+//         default: return !memcmp(str1, str2, len);
+//     }
+// }
+
+
+// it was a fun idea, but it also allows for the loading of misaligned memory, so...
+// I imagine that memcmp probably does a better job at this than me, so...
+# if 0
+#ifdef __OPTIMIZE__
+// __inline__ bool fcmp(const char *restrict str1, const char *restrict str2, int len)
+__force_inline bool fcmp(const char *restrict str1, const char *restrict str2, int len)
+#else
+static bool fcmp(const char *restrict str1, const char *restrict str2, int len)
+#endif
+{
     switch (len) {
         case 0:  return true;
         case 1:  return _bcmp(str1, str2, 1);
@@ -228,6 +408,11 @@ __inline__ bool fcmp(const char *restrict str1, const char *restrict str2, int l
         default: return !memcmp(str1, str2, len);
     }
 }
+# endif
+
+__force_inline bool fcmp(const char *restrict str1, const char *restrict str2, int len) {
+    return !memcmp(str1, str2, len);
+}
 
 
 
@@ -245,10 +430,184 @@ __inline__ bool fcmp(const char *restrict str1, const char *restrict str2, int l
 
 
 
+
+
+__inline__ bool is_slcomment(const char *c) {
+    return FCMP(c, "//");
+}
+
+__inline__ bool is_mlcomment(const char *c) {
+    return FCMP(c, "/*");
+}
+
+// __inline__ bool is_encoding_prefix(char *c) {
+//     return *c == 'u' ||
+//            *c == 'U' ||
+//            *c == 'L' ||
+//            FCMP(c, "u8");
+// }
+
+// returns length of prefix
+__inline__ int8_t is_encoding_prefix(const char *c) {
+    // if (FCMP(c, "u8") return 2;
+    // if (*c == 'u' ||
+    //     *c == 'U' ||
+    //     *c == 'L' ||) return 1;
+    switch (c[0]) {
+        case 'u':
+            if (c[1] == '8') return 2;
+            __fallthrough;
+        case 'U':
+        case 'L':
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+__inline__ bool is_sstring(const char *c) {
+    // return c[0] == '"' || is_encoding_prefix(c) && c[1] == '"';
+    return c[is_encoding_prefix(c)] == '"';
+}
+
+__inline__ bool is_cstring(const char *c) {
+    // return c[0] == '\'' || is_encoding_prefix(c) && c[1] == '\'';
+    return c[is_encoding_prefix(c)] == '\'';
+}
+
+// TODO: maybe I should have the parameter be `bool *escape`, and have it be managed by this
+__inline__ bool is_schar(const char *c, bool escape) {
+    // return is_source(c[0]) && (c[0] != '"' || c[-1] == '\\');
+    return is_source(c[0]) && (escape || c[0] != '"');
+}
+
+// TODO: maybe I should have the parameter be `bool *escape`, and have it be managed by this
+__inline__ bool is_cchar(const char *c, bool escape) {
+    // return is_source(c[0]) && (c[0] != '\'' || c[-1] == '\\');
+    return is_source(c[0]) && (escape || c[0] != '\'');
+}
+
+__inline__ bool is_comment(const char *c) {
+    return is_slcomment(c) || is_mlcomment(c);
+}
+
+__inline__ bool is_truenewline(const char *buff, size_t index) {
+    return buff[index] && buff[index] == '\n' && (index < 1 || buff[index-1] != '\\');
+}
+
+__inline__ bool is_dec_digit(unsigned char c) {
+    return (unsigned)(c-'0') <= '9'-'0';
+}
+
+__inline__ bool is_hex_digit(unsigned char c) {
+    return ((unsigned)(c-'0') <= '9'-'0') || ((unsigned)(c-'a') <= 'f'-'a') || ((unsigned)(c-'A') <= 'F'-'A');
+}
+
+__inline__ bool is_oct_digit(unsigned char c) {
+    return (unsigned)(c-'0') <= '7'-'0';
+}
+
+__inline__ bool is_bin_digit(unsigned char c) {
+    return (unsigned)(c-'0') <= '1'-'0';
+}
+
+__inline__ bool is_sign(char c) {
+    return c == '-' || c == '+';
+}
+
+// __inline__ char to_uppercase(char c) {
+//     if (uppercase_map[c]) return uppercase_map[c];
+//     return c;
+// }
+// 
+// __inline__ char to_lowercase(char c) {
+//     if (lowercase_map[c]) return lowercase_map[c];
+//     return c;
+// }
+
+
+// TODO: replace (most) of these invocations with is_alpha
+__inline__ int8_t is_floating_suffix(const char *c) {
+    // return is_alpha(c[0]);
+
+    TODO
+    // TODO: fix this first conditional. It was really thrown on for an edge case
+    // if (c[0] == 'f' || c[0] == 'l')
+    if (c[0] == 'f' || (c[0] == 'l' && c[1] != 'l' &&  c[1] != 'u' &&  c[1] != 'U'))
+        return 1;
+    else if (c[0] == 'd')
+        if (c[1] == 'f' || c[1] == 'd' || c[1] == 'l')
+            return 2;
+    else if (c[0] == 'D')
+        if (c[1] == 'F' || c[1] == 'D' || c[1] == 'L')
+            return 2;
+    return 0;
+//     switch (c[0]) {
+//         case 'f':
+//         case 'l':
+//             return 1;
+// 
+//         case 'd':
+//             switch (c[1]) {
+//                 case 'f':
+//                 case 'd':
+//                 case 'l':
+//                     return 2;
+//             }
+//             break;
+// 
+//         case 'D':
+//             switch (c[1]) {
+//                 case 'F':
+//                 case 'D':
+//                 case 'L':
+//                     return 2;
+//             }
+//             break;
+//     }
+//     return 0;
+}
+
+// // returns true if whitespace contains a newline
+// __inline__ bool skip_whitespace(clexstate_t *state) {
+//     const char *restrict buff = state->buff;
+//     size_t *restrict const index = &state->index;
+//     bool is_newline = false;
+//     
+//     for (; is_whitespace(buff[index[0]]); reader_next(state, 1));
+// 
+//     return is_newline;
+// }
+
+// __inline__ void skip_slcomment(clexstate_t *state) {
+//     const char *restrict buff = state->buff;
+//     size_t *restrict const index = &state->index;
+// 
+//     // for (; buff[index[0]] && (buff[index[0]] != '\n' || FCMP(buff+index[0]-1, "\\\n")); index[0]++)
+//     for (; buff[index[0]] && !is_truenewline(buff, index[0]); reader_next(state, 1));
+// 
+// }
+
+// __inline__ void skip_mlcomment(clexstate_t *state) {
+//     const char *restrict buff = state->buff;
+//     size_t *restrict const index = &state->index;
+// 
+//     for (; buff[index[0]] && !FCMP(buff+index[0], "*/"); reader_next(state, 1));
+// }
+
+
+
+
+
+
+
 // note the length check makes first char collisions barely a problem, so dont worry about
 // nesting switch statements until there are 6 or more char collisions
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
+
 ktoken_id_t match_keyword(const char *str, int len) {
-    if (len < sizeof("do")-1 || len > sizeof("static_assert")-1) return KTOKEN_INVALID;
+    if (len < (signed)sizeof("do")-1 || len > (signed)sizeof("static_assert")-1) return KTOKEN_INVALID;
     
     switch (str[0]) {
         case '_':
@@ -293,12 +652,12 @@ ktoken_id_t match_keyword(const char *str, int len) {
                   if (FCMP1(str, len, "return"))    return KTOKEN_RETURN;   break;
         case 's':
             switch (str[1]) {
-                case 'h': if (FCMP2(str, len, "short"))         return KTOKEN_SHORT;
+                case 'h': if (FCMP2(str, len, "short"))         return KTOKEN_SHORT;    break;
                 case 'i': if (FCMP2(str, len, "signed"))        return KTOKEN_SIGNED;
-                          if (FCMP2(str, len, "sizeof"))        return KTOKEN_SIZEOF;
+                          if (FCMP2(str, len, "sizeof"))        return KTOKEN_SIZEOF;   break;
                 case 't': if (FCMP2(str, len, "static"))        return KTOKEN_STATIC;
                           if (FCMP2(str, len, "static_assert")) return KTOKEN_STATIC_ASSERT;
-                          if (FCMP2(str, len, "struct"))        return KTOKEN_STRUCT;
+                          if (FCMP2(str, len, "struct"))        return KTOKEN_STRUCT;   break;
                 case 'w': if (FCMP2(str, len, "switch"))        return KTOKEN_SWITCH;   break;
             }                                                   return KTOKEN_INVALID;
         case 't': if (FCMP1(str, len, "thread_local"))  return KTOKEN_THREAD_LOCAL;
@@ -313,6 +672,7 @@ ktoken_id_t match_keyword(const char *str, int len) {
         case 'w': if (FCMP1(str, len, "while"))         return KTOKEN_WHILE;            break;
     }                                                   return KTOKEN_INVALID;
 }
+#pragma GCC diagnostic pop
 
 
 
@@ -334,6 +694,9 @@ ktoken_id_t match_keyword(const char *str, int len) {
 
 #define STRCMP(__buff, __str) (!memcmp((__buff), (__str), sizeof(__str)-1))
 
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
 
 ptoken_id_t match_punctuator(const char *restrict str, int *restrict len) {
     switch (str[0]) {
@@ -387,202 +750,209 @@ ptoken_id_t match_punctuator(const char *restrict str, int *restrict len) {
                                                 return (*len = 1, PTOKEN_OR);
         case '}':                               return (*len = 1, PTOKEN_R_CBRACKET);
         case '~':                               return (*len = 1, PTOKEN_TILDE);
-    }
+    }                                           return (*len = 1, PTOKEN_INVALID);
 }
 
-
-
-
-typedef struct {
-    const char *buff;
-    size_t index;
-    // int line, line_index;
-    int line, column;
-    const char *filename;
-    int filenamelen;
-    int flags;
-} tokenstate_t;
-
-
-
-__inline__ void tokenstate_init(tokenstate_t *restrict state, const char *restrict buff) {
-    *state = (tokenstate_t){
-        .buff = buff,
-        .index = 0,
-        .line = 0,
-        // .line_index = 0,
-        .column = 0,
-    };
-}
+#pragma GCC diagnostic pop
 
 
 
 
-// // TODO: merge this with tokenstate_shift
-// __inline__ void tokenstate_newline(tokenstate_t *state) {
-//     state->line++;
-//     state->line_index = state->index;
-// }
 
-__inline__ size_t tokenstate_add(tokenstate_t *state, size_t n) {
+
+__inline__ void consume_hex_exponent(clexstate_t *state) {
     int i;
-    for (i = 0; state->buff[state->index[0]+i] && (i < n); i++) {
-        if (state->buff[state->index[0]] == '\n') {
-            state->line++;
-            state->column = 0;
-        } else {
-            state->column++;
-        }
+    const char *buff    = state->buff;
+    size_t *const index = &state->index;
+    
+    // safety check, gets optimized out if this function is used right
+    if (buff[index[0]] != 'p' && buff[index[0]] != 'P')
+        lex_error(state, "Missing exponent in hex float.");
+    // consume exponent prefix
+    reader_next(state, 1);
+    // consume sign (opt)
+    if (is_sign(buff[index[0]])) reader_next(state, 1);
+    // consume digits
+    for(i = 0; consume_dec_digit(state); i++);
+
+    if (i == 0)
+        lex_error(state, "No digits in hex float exponent.");
+
+    // return 0;
+}
+
+
+
+
+__inline__ void consume_exponent(clexstate_t *state) {
+    int i;
+    const char *buff    = state->buff;
+    size_t *const index = &state->index;
+    
+    // safety check, gets optimized out if this function is used right
+    if (buff[index[0]] != 'e' && buff[index[0]] != 'E')
+        lex_error(state, "Missing exponent in float.");
+    // consume exponent prefix
+    reader_next(state, 1);
+    // consume sign (opt)
+    if (is_sign(buff[index[0]])) reader_next(state, 1);
+    // consume digits
+    for(i = 0; consume_dec_digit(state); i++);
+
+    if (i == 0)
+        lex_error(state, "No digits in float exponent.");
+}
+
+
+
+
+__inline__ token_flags_t consume_floating_suffix(clexstate_t *state) {
+    int n;
+    const char *buff    = state->buff;
+    size_t *const index = &state->index;
+    token_flags_t fsuffix = 0;
+    // bool unvalid = true;
+    
+    // n = is_floating_suffix(buff+index[0]);
+    // if (n == 0) lex_error(state, "Invalid floating suffix.");
+    // else unvalid = false;
+
+    // Just check for alpha char as a lookahead for this function
+
+    n = 0;
+    switch (buff[index[0]]) {
+        case 'd':
+            switch (buff[index[0]+1]) {
+                case 'f': n = 2; fsuffix = TFLAG_FSUFFIX_DEC32;  break;
+                case 'd': n = 2; fsuffix = TFLAG_FSUFFIX_DEC64;  break;
+                case 'l': n = 2; fsuffix = TFLAG_FSUFFIX_DEC128; break;
+            }
+            break;
+        case 'D':
+            switch (buff[index[0]+1]) {
+                case 'F': n = 2; fsuffix = TFLAG_FSUFFIX_DEC32;  break;
+                case 'D': n = 2; fsuffix = TFLAG_FSUFFIX_DEC64;  break;
+                case 'L': n = 2; fsuffix = TFLAG_FSUFFIX_DEC128; break;
+            }
+            break;
+        case 'f':
+        case 'F': n = 1; fsuffix = TFLAG_FSUFFIX_FLOAT; break;
+        case 'l':
+        case 'L': n = 1; fsuffix = TFLAG_FSUFFIX_LONG;  break;
+        // default:
+        //     lex_error(state, "Missing floating suffix after hex float.");
     }
-    // for (int i = 0; i > n; i--) {
-    //     if (state->buff[state->index[0]] == '\n') {
-    //         state->line--;
-    //         state->column = -1;
-    //     } else {
-    //         state->column--;
-    //     }
-    // }
-    return (state->index += i);
+    
+    reader_next(state, n);
+
+    printf("char %c\n", buff[index[0]]);
+    
+    // check for lingering alphanumeric characters
+    if (is_alphanumeric(buff[index[0]]))
+        lex_error(state, "Invalid floating suffix.");
+    else if (n == 0)
+        lex_error(state, "Missing floating suffix.");
+
+    return fsuffix;
 }
 
 
 
-__inline__ bool is_slcomment(const char *c) {
-    return FCMP(c, "//");
+
+__inline__ token_flags_t consume_integer_suffix(clexstate_t *state) {
+    int n;
+    const char *buff    = state->buff;
+    size_t *const index = &state->index;
+    token_flags_t suffix = 0;
+    // Just check for alpha char as a lookahead for this function
+
+    // consume leading unsigned
+    if (buff[index[0]] == 'u' || buff[index[0]] == 'U') {
+        reader_next(state, 1);
+        suffix |= TFLAG_IUNSIGN_TRUE;
+    }
+
+    n = 0;
+    switch (buff[index[0]]) {
+        case 'l':
+            switch (buff[index[0]+1]) {
+                case 'l': n = 2; suffix |= TFLAG_ISUFFIX_LLONG;  break;
+                default:  n = 1; suffix |= TFLAG_ISUFFIX_LONG;
+            }
+            break;
+        case 'L':
+            switch (buff[index[0]+1]) {
+                case 'L': n = 2; suffix |= TFLAG_ISUFFIX_LLONG;  break;
+                default:  n = 1; suffix |= TFLAG_ISUFFIX_LONG;
+            }
+            break;
+        case 'w': if (buff[index[0]+1] == 'b') (n = 2, suffix |= TFLAG_ISUFFIX_WB); break;
+        case 'W': if (buff[index[0]+1] == 'B') (n = 2, suffix |= TFLAG_ISUFFIX_WB); break;
+    }
+    
+    // consume trailing unsigned
+    if (!(suffix & TFLAG_IUNSIGN_MASK) && (buff[index[0]+n] == 'u' || buff[index[0]+n] == 'U')) {
+        reader_next(state, 1);
+        suffix |= TFLAG_IUNSIGN_TRUE;
+    }
+    
+    reader_next(state, n);
+    
+    // check for lingering alphanumeric characters
+    if (is_alphanumeric(buff[index[0]]))
+        lex_error(state, "Invalid integer suffix.");
+    else if (n == 0)
+        lex_error(state, "Missing integer suffix.");
+
+    return suffix;
 }
 
-__inline__ bool is_mlcomment(const char *c) {
-    return FCMP(c, "/*");
+
+
+
+__inline__ bool consume_dec_digit(clexstate_t *state) {
+    if (is_dec_digit(state->buff[state->index])) {
+        reader_next(state, 1);
+        return true;
+    } else return false;
 }
 
-// __inline__ bool is_encoding_prefix(char *c) {
-//     return *c == 'u' ||
-//            *c == 'U' ||
-//            *c == 'L' ||
-//            FCMP(c, "u8");
-// }
 
-// returns length of prefix
-__inline__ int8_t is_encoding_prefix(const char *c) {
-    if (*c == 'u' ||
-        *c == 'U' ||
-        *c == 'L' ||)  return 1;
-    if (FCMP(c, "u8")) return 2;
-    return 0;
+__inline__ bool consume_hex_digit(clexstate_t *state) {
+    if (is_hex_digit(state->buff[state->index])) {
+        reader_next(state, 1);
+        return true;
+    } else return false;
 }
 
-__inline__ bool is_sstring(const char *c) {
-    return c[0] == '"' || is_encoding_prefix(c) && c[1] == '"';
+
+__inline__ bool consume_oct_digit(clexstate_t *state) {
+    if (is_oct_digit(state->buff[state->index])) {
+        reader_next(state, 1);
+        return true;
+    } else return false;
 }
 
-__inline__ bool is_cstring(const char *c) {
-    return c[0] == '\'' || is_encoding_prefix(c) && c[1] == '\'';
+
+__inline__ bool consume_bin_digit(clexstate_t *state) {
+    if (is_bin_digit(state->buff[state->index])) {
+        reader_next(state, 1);
+        return true;
+    } else return false;
 }
 
-// TODO: create an is_truesquote function
-__inline__ bool is_schar(const char *c) {
-    return is_source(c[0]) && (c[0] != '"' || c[-1] == '\\');
+
+__inline__ bool consume_alphanumeric(clexstate_t *state) {
+    if (is_alphanumeric(state->buff[state->index])) {
+        reader_next(state, 1);
+        return true;
+    } else return false;
 }
 
-// TODO: create an is_truecquote function
-__inline__ bool is_cchar(const char *c) {
-    return is_source(c[0]) && (c[0] != '\'' || c[-1] == '\\');
-}
 
-__inline__ bool is_comment(const char *c) {
-    return is_slcomment(c) || is_mlcomment(c);
-}
 
-__inline__ bool is_truenewline(const char *buff, size_t index) {
-    return buff[index] && buff[index] == '\n' && (index < 1 || buff[index-1] != '\\');
-}
 
-__inline__ bool is_dec_digit(unsigned char c) {
-    return c-'0' <= '9'-'0';
-}
 
-__inline__ bool is_hex_digit(unsigned char c) {
-    return (c-'0' <= '9'-'0') || (c-'a' <= 'f'-'a') || (c-'A' <= 'F'-'A');
-}
-
-__inline__ bool is_oct_digit(unsigned char c) {
-    return c-'0' <= '7'-'0';
-}
-
-__inline__ bool is_bin_digit(unsigned char c) {
-    return c-'0' <= '1'-'0';
-}
-
-__inline__ bool is_sign(char c) {
-    return c == '-' || c == '+';
-}
-
-// __inline__ char to_uppercase(char c) {
-//     if (uppercase_map[c]) return uppercase_map[c];
-//     return c;
-// }
-// 
-// __inline__ char to_lowercase(char c) {
-//     if (lowercase_map[c]) return lowercase_map[c];
-//     return c;
-// }
-
-__inline__ bool is_uppercase(unsigned char c) {
-    return c-'A' <= 'Z'-'A';
-}
-
-__inline__ bool is_lowercase(unsigned char c) {
-    return c-'a' <= 'z'-'a';
-}
-
-__inline__ char to_uppercase(char c) {
-    if (is_lowercase(c)) return c-'a'+'A';
-    return c;
-}
-
-__inline__ char to_lowercase(char c) {
-    if (is_uppercasecase(c)) return c-'A'+'a';
-    return c;
-}
-
-__inline__ int8_t is_floating_suffix(const char *c) {
-    if (c[0] == 'f' || c[0] == 'l')
-        return 1;
-    else if (c[0] == 'd')
-        if (c[1] == 'f' || c[1] == 'd' || c[1] == 'l')
-            return 2;
-    else if (c[0] == 'D')
-        if (c[1] == 'F' || c[1] == 'D' || c[1] == 'L')
-            return 2;
-    return 0;
-}
-
-// // returns true if whitespace contains a newline
-// __inline__ bool skip_whitespace(tokenstate_t *state) {
-//     const char *restrict buff = state->buff;
-//     size_t *restrict const index = &state->index;
-//     bool is_newline = false;
-//     
-//     for (; is_whitespace(buff[index[0]]); tokenstate_add(state, 1));
-// 
-//     return is_newline;
-// }
-
-// __inline__ void skip_slcomment(tokenstate_t *state) {
-//     const char *restrict buff = state->buff;
-//     size_t *restrict const index = &state->index;
-// 
-//     // for (; buff[index[0]] && (buff[index[0]] != '\n' || FCMP(buff+index[0]-1, "\\\n")); index[0]++)
-//     for (; buff[index[0]] && !is_truenewline(buff, index[0]); tokenstate_add(state, 1));
-// 
-// }
-
-// __inline__ void skip_mlcomment(tokenstate_t *state) {
-//     const char *restrict buff = state->buff;
-//     size_t *restrict const index = &state->index;
-// 
-//     for (; buff[index[0]] && !FCMP(buff+index[0], "*/"); tokenstate_add(state, 1));
-// }
 
 
 
@@ -591,28 +961,30 @@ __inline__ int8_t is_floating_suffix(const char *c) {
 // This way it is trivial to detect if our next token starts on a newline
 // no token should contain leading or trailing whitespace
 // TODO: Note, that there is a rare chance of segfault if the buffer's end lies on a page boundry
-void next_token(tokenstate_t *restrict state, token_t *restrict token) {
-    int err;
+//       Therefore, just add extra bytes on buffers you load.
+void next_token(clexstate_t *restrict state, token_t *restrict token) {
+    // int err;
     const char *restrict buff = state->buff;
     size_t *restrict const index = &state->index;
-    bool is_newline = state->line_index == index[0];
+    // bool is_newline = state->line_index == index[0];
+    bool is_newline = state->column == 0;
     
     // skip whitespace and comments, and parse linemarkers
     for (bool did_action = true; did_action;) {
         did_action = false;
         
         // whitespace check
-        for (; is_whitespace(buff[index[0]]); tokenstate_add(state, 1))
+        for (; is_whitespace(buff[index[0]]); reader_next(state, 1))
             did_action = true;
         
         // single-line comment check
         if (is_slcomment(buff+index[0]))
-            for (; buff[index[0]] && !is_truenewline(buff, index[0]); tokenstate_add(state, 1))
+            for (; buff[index[0]] && !is_truenewline(buff, index[0]); reader_next(state, 1))
                 did_action = true;
             
         // milti-line comment check
         if (is_mlcomment(buff+index[0]))
-            for (; buff[index[0]] && !FCMP(buff+index[0], "*/"); tokenstate_add(state, 1))
+            for (; buff[index[0]] && !FCMP(buff+index[0], "*/"); reader_next(state, 1))
                 did_action = true;
             
         // linemarker check
@@ -624,44 +996,44 @@ void next_token(tokenstate_t *restrict state, token_t *restrict token) {
 
     // check string literal constant
     if (is_sstring(buff+index[0]))
-        err = next_token_string_literal(state, token, CONST_STRING);
+        next_token_string_literal(state, token, TFLAG_STRING_S);
 
     // check char literal constant
     else if (is_cstring(buff+index[0]))
-        err = next_token_string_literal(state, token, CONST_CHARACTER);
+        next_token_string_literal(state, token, TFLAG_STRING_C);
 
     // check numeric constant
     else if (is_numeric(buff[index[0]]))
-        err = next_token_numeric(state, token);
+        next_token_numeric(state, token);
 
     // check alpha leading token
     else if (is_alpha(buff[index[0]])) {
         uint8_t kid;
     
         // pretend it is identifier
-        err = next_token_identifier(state, token);
+        next_token_identifier(state, token);
 
         // check if actually keyword
-        if (!err) {
-            kid = match_keyword(token->start, token->len);
-            if (kid != KTOKEN_INVALID) {
-                token->type = TOKEN_KEYWORD;
-                token->tid = kid;
-            }
+        kid = match_keyword(token->start, token->len);
+        if (kid != KTOKEN_INVALID) {
+            token->type = TOKEN_KEYWORD;
+            token->tid = kid;
         }
     }
     // check punctuator
     else if (is_punctuator(buff[index[0]]))
-        err = next_token_punctuator(state, token);
+        next_token_punctuator(state, token);
 
-    // return unknown
+    // we can error now
     else
-        err = next_token_unknown(state, token);
+        lex_error(state, "Unexpected token \"%s\".", cchar(buff[index[0]]));
 
     // consume trailing whitespace before newline
-    for (; is_whitespace(buff[index[0]]) && buff[index[0]] != '\n'; tokenstate_add(state, 1));
+    for (; is_whitespace(buff[index[0]]) && buff[index[0]] != '\n'; reader_next(state, 1));
+    // consume newline
+    if (buff[index[0]] == '\n') reader_next(state, 1);
 
-    if (err) return -1;
+    // if (err) return -1;
 }
 
 
@@ -672,46 +1044,48 @@ void next_token(tokenstate_t *restrict state, token_t *restrict token) {
 // TODO: Might need a filename tree structure for this. But implement that later.
 // TODO: Also I should probably make this more robust in the future
 // https://gcc.gnu.org/onlinedocs/cpp/Preprocessor-Output.html
-static void parse_linemarker(tokenstate_t *restrict state) {
+__todo static void parse_linemarker(clexstate_t *restrict state) {
     const char *restrict buff = state->buff;
     size_t *restrict const index = &state->index;
     int n = -1, flags = 0;
-    char* file = NULL;
+    const char *file = NULL;
     int filelen;
 
     // TODO: add fatal check gate here
 
     // Skip # char and space
-    tokenstate_add(state, 1);
-    buff[index[0]] != '\n' && tokenstate_add(state, 1);
+    reader_next(state, 1);
+    // buff[index[0]] != '\n' && reader_next(state, 1);
+    if (buff[index[0]] != '\n') reader_next(state, 1);
 
     // match first number
-    for (int i = 0; is_numeric(buff[index[0]]); tokenstate_add(state, 1)) {
+    for (int i = 0; is_numeric(buff[index[0]]); reader_next(state, 1)) {
         i *= 10;
         i += buff[index[0]] - '0';
         n = i;
     }
     
     // Skip space
-    if (buff[index[0]] != '\n') tokenstate_add(state, 1);
+    if (buff[index[0]] != '\n') reader_next(state, 1);
 
     // match string
     // if (buff[index[0]] == '"') {
-    //     buff[index[0]] != '\n' && tokenstate_add(state, 1);
-    //     for (int i = 0; buff[index[0]] != '\n' && buff[index[0]] != '"'); tokenstate_add(state, 1), i++) {
+    //     buff[index[0]] != '\n' && reader_next(state, 1);
+    //     for (int i = 0; buff[index[0]] != '\n' && buff[index[0]] != '"'); reader_next(state, 1), i++) {
     //         file = realloc(file, i+2);
     //         file[i] = buff[index[0]];
     //         file[i] = '\0';
     //     }
     // }
+    filelen = 0;
     if (buff[index[0]] == '"' && buff[index[0]+1]) {
-        if (buff[index[0]] != '\n') tokenstate_add(state, 1);
+        if (buff[index[0]] != '\n') reader_next(state, 1);
         if (buff[index[0]]) file = buff+index[0];
-        for (filelen = 0; buff[index[0]] != '"'; tokenstate_add(state, 1), filelen++);
+        for (; buff[index[0]] != '"'; reader_next(state, 1), filelen++);
     }
     
     // consume everything else up to newline, consuming flags
-    for (int i = 0; buff[index[0]] != '\n'; tokenstate_add(state, 1), i++) {
+    for (int i = 0; buff[index[0]] != '\n'; reader_next(state, 1), i++) {
         if (buff[index[0]] >= '1' && buff[index[0]] <= '4')
             flags |= 1<<(buff[index[0]] - '1');
     }
@@ -727,12 +1101,14 @@ static void parse_linemarker(tokenstate_t *restrict state) {
 
 // I suppose I should let the parser handle interpreting the string so I dont need to malloc
 // a buffer for this.
-static void next_token_string_literal(tokenstate_t *restrict state, token_t *restrict token, uint8_t mode) {
-    int err, n;
-    const char *restrict buff = state->buff;
-    size_t *restrict const index = &state->index;
+// TODO: replace start and start_index with a function to start and end the token via the state
+__todo static void next_token_string_literal(clexstate_t *restrict state, token_t *restrict token, uint8_t mode) {
+    int n;
+    const char *buff = state->buff;
+    size_t *const index = &state->index;
     uint16_t flags;
     const char *start;
+    bool escape;
 
     // TODO: Add fatal check gate here
 
@@ -740,54 +1116,66 @@ static void next_token_string_literal(tokenstate_t *restrict state, token_t *res
     n = is_encoding_prefix(buff+index[0]);
     if (n == 1) {
         switch (buff[index[0]]) {
-            case 'u':
-                flags = TFLAG_ENCC_UTF16;
-                break;
-            case 'U':
-                flags = TFLAG_ENCC_UTF32;
-                break;
-            case 'L':
-                flags = TFLAG_ENCC_WIDE;
-                break;
+            case 'u': flags = TFLAG_ENCC_UTF16; break;
+            case 'U': flags = TFLAG_ENCC_UTF32; break;
+            case 'L': flags = TFLAG_ENCC_WIDE;  break;
+            default: fatal(1);
         }
     } else if (n == 2) {
         if (buff[index[0]+1] == '8')
             flags = TFLAG_ENCC_UTF8;
+        else fatal(1);
 
     } else {
         flags = TFLAG_ENCC_DEFAULT;
     }
     
     // consume prefix and quote
-    tokenstate_add(state, n+1);
+    reader_next(state, n+1);
 
     // consume string
-    start = buff + index[0];
+    start = buff+index[0];
+    escape = false;
     switch (mode) {
-        case CONST_STRING:
-            for (n = 0; is_schar(buff+index[0]); tokenstate_add(state, 1), n++);
+        case TFLAG_STRING_S:
+            for (n = 0; is_schar(buff+index[0], escape); reader_next(state, 1), n++)
+                if (buff[index[0]] == '\\' && !escape) escape = true;
+                else escape = false;
             break;
-        case CONST_CHARACTER:
-            for (n = 0; is_cchar(buff+index[0]); tokenstate_add(state, 1), n++);
+        case TFLAG_STRING_C:
+            for (n = 0; is_cchar(buff+index[0], escape); reader_next(state, 1), n++)
+                if (buff[index[0]] == '\\' && !escape) escape = true;
+                else escape = false;
             break;
     }
 
     // consume quote
-    tokenstate_add(state, 1);
+    reader_next(state, 1);
+
+    // create token
+    *token = (token_t){
+        .start  = start,
+        .len    = buff + index[0] - start - 1,
+        .line   = state->line,
+        .column = state->column,
+        .type   = TOKEN_CONSTANT,
+        .tid    = CONST_STRING,
+        .flags  = mode | flags,
+    };
 }
 
 
 
 
-static void next_token_numeric(tokenstate_t *restrict state, token_t *restrict token) {
+static void next_token_numeric(clexstate_t *restrict state, token_t *restrict token) {
     // int err;
     const char *buff = state->buff;
     size_t *const index = &state->index;
 
-    #define __DEBUG__
+    #ifdef __DEBUG__
     // safety check
     if (!is_numeric(buff[index[0]]))
-        fatal();
+        fatal(1);
     #endif
 
     if (buff[index[0]] == '0') {
@@ -809,125 +1197,34 @@ static void next_token_numeric(tokenstate_t *restrict state, token_t *restrict t
 
 
 
-__inline__ void consume_hex_exponent(tokenstate_t *state) {
-    int i;
-    // safety check, gets optimized out if this function is used right
-    if (buff[index[0]] != 'p' && buff[index[0]] != 'P')
-        lex_error(state, "Missing exponent in hex float.");
-    // consume exponent prefix
-    tokenstate_add(state, 1);
-    // consume sign (opt)
-    if (is_sign(buff[index[0]])) tokenstate_add(state, 1);
-    // consume digits
-    for(i = 0; consume_dec_digit(state); i++);
-
-    if (i == 0)
-        lex_error(state, "No digits in hex float exponent.");
-
-    // return 0;
-}
 
 
 
-
-__inline__ token_flags_t consume_floating_suffix(tokenstate_t *state) {
-    int n;
-    const char *buff    = state->buff;
-    size_t *const index = &state->index;
-    token_flags_t fsuffix;
-    // bool unvalid = true;
-    
-    // n = is_floating_suffix(buff+index[0]);
-    // if (n == 0) lex_error(state, "Invalid floating suffix.");
-    // else unvalid = false;
-
-    // Just check for alpha char as a lookahead for this function
-
-    n = 0;
-    switch (buff[index[0]]) {
-        case 'd':
-            switch (buff[index[0]+1]) {
-                case 'f':
-                    n = 2;
-                    fsuffix = TFLAG_FSUFFIX_DEC32;
-                    break;
-                case 'd':
-                    n = 2;
-                    fsuffix = TFLAG_FSUFFIX_DEC64;
-                    break;
-                case 'l':
-                    n = 2;
-                    fsuffix = TFLAG_FSUFFIX_DEC128;
-                    break;
-            }
-            break;
-        case 'D':
-            switch (buff[index[0]+1]) {
-                case 'F':
-                    n = 2;
-                    fsuffix = TFLAG_FSUFFIX_DEC32;
-                    break;
-                case 'D':
-                    n = 2;
-                    fsuffix = TFLAG_FSUFFIX_DEC64;
-                    break;
-                case 'L':
-                    n = 2;
-                    fsuffix = TFLAG_FSUFFIX_DEC128;
-                    break;
-            }
-            break;
-        case 'f':
-        case 'F':
-            n = 1;
-            fsuffix = TFLAG_FSUFFIX_FLOAT;
-            break;
-        case 'l':
-        case 'L':
-            n = 1;
-            fsuffix = TFLAG_FSUFFIX_LONG;
-            break;
-        // default:
-        //     lex_error(state, "Missing floating suffix after hex float.");
-    }
-    
-    tokenstate_add(state, n);
-    
-    // check for lingering alphanumeric characters
-    if (is_alphanumeric(buff[index[0]]))
-        lex_error(state, "Invalid floating suffix.");
-    else if (n == 0)
-        lex_error(state, "Missing floating suffix.");
-
-    return fsuffix;
-}
-
-
-
-
-__inline__ token_flags_t consume_integer_suffix(tokenstate_t *state) {
-    
-}
-
-
-
-
-
-static void next_token_num_hex(tokenstate_t *restrict state, token_t *restrict token) {
+// > For hexadecimal floating constants, the exponent is not optional to avoid ambiguity resulting from an f suffix being mistaken as a hexadecimal digit. [https://en.cppreference.com/c/language/floating_constant]
+__todo static void next_token_num_hex(clexstate_t *restrict state, token_t *restrict token) {
     int err, n, i;
-    uint16_t flags;
-    const char *start;
+    // const char *start;
     const char *buff    = state->buff;
     size_t start_index  = state->index;
     size_t *const index = &state->index;
     token_flags_t flags;
     token_const_type_t type;
 
+    (void)n;
+
+    // TODO: make floating suffix checks default to integer before float
+
+    //// First attempt, won't work due to 'f' ambiguity
     // hex float:
     // 0x             . hex_digit^1 (S(pP) sign^-1 digit^1)^-1 floating_suffix^-1
     // 0x hex_digit^1 . hex_digit^0 (S(pP) sign^-1 digit^1)^-1 floating_suffix^-1
     // 0x hex_digit^1               (S(pP) sign^-1 digit^1)    floating_suffix^-1
     // 0x hex_digit^1                                          floating_suffix
+
+    // hex float:
+    // 0x             . hex_digit^1 (S(pP) sign^-1 digit^1)    floating_suffix^-1
+    // 0x hex_digit^1 . hex_digit^0 (S(pP) sign^-1 digit^1)    floating_suffix^-1
+    // 0x hex_digit^1               (S(pP) sign^-1 digit^1)    floating_suffix^-1
 
     // hex int:
     // 0x hex_digit^1 integer_suffix^-1
@@ -942,12 +1239,12 @@ static void next_token_num_hex(tokenstate_t *restrict state, token_t *restrict t
 
     #ifdef __DEBUG__
     // safety check
-    if (!(buff[index[0]] == '0' && (buff[index[0]+1] != 'x' || buff[index[0]+1] == 'X')))
-        fatal();
+    if (!(buff[index[0]] == '0' && (buff[index[0]+1] == 'x' || buff[index[0]+1] == 'X')))
+        fatal(1);
     #endif
 
     // consume hex prefix
-    tokenstate_add(state, 2);
+    reader_next(state, 2);
 
     // check for leading period
     if (buff[index[0]] == '.') {
@@ -957,14 +1254,14 @@ static void next_token_num_hex(tokenstate_t *restrict state, token_t *restrict t
         for (i = 0; consume_hex_digit(state); i++);
         if (i == 0) lex_error(state, "Invalid hex fractional.");
 
-        // consume exponent (opt)
-        if (buff[index[0]] == 'p' || buff[index[0]] == 'P')
-            consume_hex_exponent(state);
-
-        // consume float suffix (opt)
-        if (is_floating_suffix(buff+index[0]))
-             flags |= consume_floating_suffix(state);
-        else flags |= TFLAG_FSUFFIX_DEFAULT;
+//         // consume exponent (opt)
+//         if (buff[index[0]] == 'p' || buff[index[0]] == 'P')
+//             consume_hex_exponent(state);
+// 
+//         // consume float suffix (opt)
+//         if (is_floating_suffix(buff+index[0]))
+//              flags |= consume_floating_suffix(state);
+//         else flags |= TFLAG_FSUFFIX_DEFAULT;
     
     // check for leading hex digits
     } else if (is_hex_digit(buff[index[0]])) {
@@ -976,47 +1273,61 @@ static void next_token_num_hex(tokenstate_t *restrict state, token_t *restrict t
             type = CONST_FLOATING;
             
             // consume period
-            tokenstate_add(state, 1);
+            reader_next(state, 1);
             // consume hex digits (opt)
             while(consume_hex_digit(state));
 
-            // consume exponent (opt)
-            if (buff[index[0]] == 'p' || buff[index[0]] == 'P')
-                consume_hex_exponent(state);
-
-            // consume floating suffix (opt)
-            // n = is_floating_suffix(buff+index[0]);
-            // tokenstate_add(state, n);
-            if (is_floating_suffix(buff+index[0]))
-                 flags |= consume_floating_suffix(state);
-            else flags |= TFLAG_FSUFFIX_DEFAULT;
+//             // consume exponent (opt)
+//             if (buff[index[0]] == 'p' || buff[index[0]] == 'P')
+//                 consume_hex_exponent(state);
+// 
+//             // consume floating suffix (opt)
+//             // n = is_floating_suffix(buff+index[0]);
+//             // reader_next(state, n);
+//             if (is_floating_suffix(buff+index[0]))
+//                  flags |= consume_floating_suffix(state);
+//             else flags |= TFLAG_FSUFFIX_DEFAULT;
 
         // check for exponent
         } else if (buff[index[0]] == 'p' || buff[index[0]] == 'P') {
             type = CONST_FLOATING;
             
-            // consume exponent
-            consume_hex_exponent(state);
+//             // consume exponent
+//             consume_hex_exponent(state);
+// 
+//             // consume floating suffix (opt)
+//             if (is_floating_suffix(buff+index[0]))
+//                  flags |= consume_floating_suffix(state);
+//             else flags |= TFLAG_FSUFFIX_DEFAULT;
 
-            // consume floating suffix (opt)
-            if (is_floating_suffix(buff+index[0]))
-                 flags |= consume_floating_suffix(state);
-            else flags |= TFLAG_FSUFFIX_DEFAULT;
-
-        // check for floating suffix
-        } else if (is_floating_suffix(buff+index[0])) {
-            type = CONST_FLOATING;
-
-            // consume floating suffix (opt)
-            flags |= consume_floating_suffix(state);
+//         // check for floating suffix
+//         } else if (is_floating_suffix(buff+index[0])) {
+//             type = CONST_FLOATING;
+// 
+//             // consume floating suffix (opt)
+//             flags |= consume_floating_suffix(state);
 
         // this is an integer
         } else {
             type = CONST_INTEGER;
 
             // consume integer suffix (opt)
-            flags |= consume_integer_suffix(state);
+            if (is_alpha(buff[index[0]]))
+                flags |= consume_integer_suffix(state);
         }
+    } else {
+        fatal(1);
+    }
+
+    if (type == CONST_FLOATING) {
+        // consume exponent (opt)
+        consume_hex_exponent(state);
+
+        // consume float suffix (opt)
+        // if (is_floating_suffix(buff+index[0]))
+        if (is_alpha(buff[index[0]]))
+             flags |= consume_floating_suffix(state);
+        else flags |= TFLAG_FSUFFIX_DEFAULT;
     }
 
     // check for extra alphanumeric
@@ -1043,17 +1354,19 @@ static void next_token_num_hex(tokenstate_t *restrict state, token_t *restrict t
 
 
 
-static void next_token_num_misc(tokenstate_t *restrict state, token_t *restrict token) {
+__todo static void next_token_num_misc(clexstate_t *restrict state, token_t *restrict token) {
     int i;
-    uint16_t flags;
-    const char *start;
+    // uint16_t flags;
+    // const char *start;
     const char *buff    = state->buff;
     size_t start_index  = state->index;
     size_t *const index = &state->index;
     token_flags_t flags;
     token_const_type_t type;
-    bool start_nonzero, octal_valid;
+    bool start_zero, octal_valid;
     // bool is_octal;
+
+    // TODO: make floating suffix checks default to integer before float
 
     // float:
     //         . digit^1 ((S(eE) sign^-1 digit^1))^-1 floating_suffix^-1
@@ -1075,10 +1388,10 @@ static void next_token_num_misc(tokenstate_t *restrict state, token_t *restrict 
     #ifdef __DEBUG__
     // safety check
     if (!is_numeric(buff[index[0]]))
-        fatal();
+        fatal(1);
     #endif
 
-    start_nonzero = buff[index[0]] != '0';
+    start_zero = buff[index[0]] == '0';
     octal_valid = true;
     // is_octal = buff[index[0]] == '0';
 
@@ -1087,7 +1400,7 @@ static void next_token_num_misc(tokenstate_t *restrict state, token_t *restrict 
         type = CONST_FLOATING;
     
         // consume digits
-        for (i = 0; consume_digit(state); i++);
+        for (i = 0; consume_dec_digit(state); i++);
         if (i == 0) lex_error(state, "Invalid fractional.");
 
         // consume exponent (opt)
@@ -1095,31 +1408,35 @@ static void next_token_num_misc(tokenstate_t *restrict state, token_t *restrict 
             consume_exponent(state);
 
         // consume float suffix (opt)
-        if (is_floating_suffix(buff+index[0]))
+        // if (is_floating_suffix(buff+index[0]))
+        if (is_alpha(buff[index[0]]))
              flags |= consume_floating_suffix(state);
         else flags |= TFLAG_FSUFFIX_DEFAULT;
     
     // check for leading digits
-    } else if (is_digit(buff[index[0]])) {
+    } else if (is_dec_digit(buff[index[0]])) {
         // consume digits, track if octal compatable
-        while(consume_digit(state))
-            if (!is_octal_digit(buff[index[0]]))
+        while(is_dec_digit(buff[index[0]])) {
+            if (!is_oct_digit(buff[index[0]]))
                 octal_valid = false;
+            reader_next(state, 1);
+        }
 
         // check for period
         if (buff[index[0]] == '.') {
             type = CONST_FLOATING;
             
             // consume period
-            tokenstate_add(state, 1);
+            reader_next(state, 1);
             // consume digits (opt)
-            while(consume_digit(state));
+            while(consume_dec_digit(state));
 
             // consume exponent (opt)
             if (buff[index[0]] == 'e' || buff[index[0]] == 'E')
                 consume_exponent(state);
 
-            if (is_floating_suffix(buff+index[0]))
+            // if (is_floating_suffix(buff+index[0]))
+            if (is_alpha(buff[index[0]]))
                  flags |= consume_floating_suffix(state);
             else flags |= TFLAG_FSUFFIX_DEFAULT;
 
@@ -1131,7 +1448,8 @@ static void next_token_num_misc(tokenstate_t *restrict state, token_t *restrict 
             consume_exponent(state);
 
             // consume floating suffix (opt)
-            if (is_floating_suffix(buff+index[0]))
+            // if (is_floating_suffix(buff+index[0]))
+            if (is_alpha(buff[index[0]]))
                  flags |= consume_floating_suffix(state);
             else flags |= TFLAG_FSUFFIX_DEFAULT;
 
@@ -1147,15 +1465,18 @@ static void next_token_num_misc(tokenstate_t *restrict state, token_t *restrict 
             type = CONST_INTEGER;
 
             // check if octal
-            if (start_nonzero)
+            if (start_zero)
                 if (octal_valid)
                     flags = TFLAG_BASE_OCT;
                 else
                     lex_error(state, "Invalid characters in octal integer.");
 
             // consume integer suffix (opt)
-            flags |= consume_integer_suffix(state);
+            if (is_alpha(buff[index[0]]))
+                flags |= consume_integer_suffix(state);
         }
+    } else {
+        fatal(1);
     }
 
     // check for extra alphanumeric
@@ -1170,7 +1491,7 @@ static void next_token_num_misc(tokenstate_t *restrict state, token_t *restrict 
     // create token
     *token = (token_t){
         .start  = buff + start_index,
-        .len    = index[0] - start_index + 1,
+        .len    = index[0] - start_index,
         .line   = state->line,
         .column = state->column,
         .type   = TOKEN_CONSTANT,
@@ -1184,10 +1505,10 @@ static void next_token_num_misc(tokenstate_t *restrict state, token_t *restrict 
 
 
 
-static void next_token_num_bin(tokenstate_t *restrict state, token_t *restrict token) {
+static void next_token_num_bin(clexstate_t *restrict state, token_t *restrict token) {
     int i;
-    uint16_t flags;
-    const char *start;
+    // uint16_t flags;
+    // const char *start;
     const char *buff    = state->buff;
     size_t start_index  = state->index;
     size_t *const index = &state->index;
@@ -1198,20 +1519,21 @@ static void next_token_num_bin(tokenstate_t *restrict state, token_t *restrict t
     #ifdef __DEBUG__
     // safety check
     if (!(buff[index[0]] == '0' && (buff[index[0]+1] != 'b' || buff[index[0]+1] == 'B')))
-    fatal();
+    fatal(1);
     #endif
 
     flags = TFLAG_BASE_BIN;
 
     // consume binary prefix
-    tokenstate_add(state, 2);
+    reader_next(state, 2);
 
     // consume binary digits
-    for (i = 0; consume_binary_digit(state); i++);
+    for (i = 0; consume_bin_digit(state); i++);
     if (i == 0) lex_error(state, "Invalid binary constant.");
 
     // consume integer suffix (opt)
-    flags |= consume_integer_suffix(state);
+    if (is_alpha(buff[index[0]]))
+        flags |= consume_integer_suffix(state);
 
     // check for extra alphanumeric
     if (is_alpha(buff[index[0]]))
@@ -1220,7 +1542,7 @@ static void next_token_num_bin(tokenstate_t *restrict state, token_t *restrict t
     // create token
     *token = (token_t){
         .start  = buff + start_index,
-        .len    = index[0] - start_index + 1,
+        .len    = index[0] - start_index,
         .line   = state->line,
         .column = state->column,
         .type   = TOKEN_CONSTANT,
@@ -1233,14 +1555,14 @@ static void next_token_num_bin(tokenstate_t *restrict state, token_t *restrict t
 
 
 
-static int next_token_identifier(tokenstate_t *restrict state, token_t *restrict token) {
+static void next_token_identifier(clexstate_t *restrict state, token_t *restrict token) {
     const char *buff    = state->buff;
     size_t start_index  = state->index;
     size_t *const index = &state->index;
 
     #ifdef __DEBUG__
     // safety check
-    if (!is_alpha(buff[index[0]])) fatal();
+    if (!is_alpha(buff[index[0]])) fatal(1);
     #endif
 
     // consume alphanumeric tokens
@@ -1249,7 +1571,7 @@ static int next_token_identifier(tokenstate_t *restrict state, token_t *restrict
     // create token
     *token = (token_t){
         .start  = buff + start_index,
-        .len    = index[0] - start_index + 1,
+        .len    = index[0] - start_index,
         .line   = state->line,
         .column = state->column,
         .type   = TOKEN_IDENTIFIER,
@@ -1259,7 +1581,7 @@ static int next_token_identifier(tokenstate_t *restrict state, token_t *restrict
 
 
 
-static int next_token_punctuator(tokenstate_t *restrict state, token_t *restrict token) {
+static void next_token_punctuator(clexstate_t *restrict state, token_t *restrict token) {
     const char *buff    = state->buff;
     size_t start_index  = state->index;
     size_t *const index = &state->index;
@@ -1268,22 +1590,100 @@ static int next_token_punctuator(tokenstate_t *restrict state, token_t *restrict
 
     #ifdef __DEBUG__
     // safety check
-    if (!is_punctuator(buff[index[0]])) fatal();
+    if (!is_punctuator(buff[index[0]])) fatal(1);
     #endif
 
     // consume punctuator
     tid = match_punctuator(buff + index[0], &len);
+    reader_next(state, len);
 
     if (tid == PTOKEN_INVALID)
-        lex_error(state, "Unknown punctuator \"%c\".", buff[index[0]]));
+        lex_error(state, "Unknown punctuator \"%c\".", buff[index[0]]);
 
     // create token
     *token = (token_t){
         .start  = buff + start_index,
-        .len    = index[0] - start_index + 1,
+        .len    = index[0] - start_index,
         .line   = state->line,
         .column = state->column,
         .type   = TOKEN_PUNCTUATOR,
         .tid    = tid,
     };
+}
+
+
+
+
+
+// __inline__ void clexer_init(clexstate_t *restrict state, const char *restrict buff) {
+void clexer_init(clexstate_t *restrict state, const char *restrict buff) {
+    *state = (clexstate_t){
+        .buff = buff,
+        .index = 0,
+        .line = 0,
+        .line_index = 0,
+        .column = 0,
+    };
+}
+
+
+
+
+
+void print_token(const token_t *token, int num) {
+    const char *type;
+
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmisleading-indentation"
+    switch (token->type) {
+        case TOKEN_KEYWORD:             type = "keyword    "; break;
+        case TOKEN_PUNCTUATOR:          type = "punctuator "; break;
+        case TOKEN_IDENTIFIER:          type = "identifier "; break;
+        case TOKEN_CONSTANT:
+            switch (token->tid) {
+                case CONST_FLOATING:    type = "floating   "; break;
+                case CONST_INTEGER:     type = "integer    "; break;
+                case CONST_PREDEFINED:  type = "predefined "; break;
+                case CONST_STRING:
+                    if ((token->flags & TFLAG_STRING_MASK) == TFLAG_STRING_S)
+                                        type = "string     ";
+                    else                type = "char string"; break;
+                default:                type = "invalid constant";
+            }
+            break;
+        default:    type = "invalid token";
+    }
+    #pragma GCC diagnostic pop
+    
+    printf("TOKEN %5d\t %.*s:%u:%-3u\t%s\t\"%.*s\"\n",
+        num,
+        (int)sizeof("nofile"), "nofile",
+        token->line,
+        token->column,
+        type,
+        (int)(token->len < 50 ? token->len : 50), token->start
+    );
+}
+
+
+
+
+
+
+static __noreturn void lex_error(clexstate_t *state, const char *fmt, ...) {
+    const char *start;
+    int len;
+
+    va_list args;
+    va_start(args, fmt);
+
+    start = state->buff + state->line_index;
+    for (len = 0; start[len] && start[len] != '\n'; len++);
+    
+    fprintf(stderr, "%.*s:%d:%d: error: ", state->filenamelen, state->filename, state->line, state->column);
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, "\n%5d | %.*s\n", state->line, len, start); 
+    
+    va_end(args);
+    exit(2);
 }

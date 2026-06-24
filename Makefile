@@ -1,17 +1,18 @@
 
-TARGET := hyperc
 SRCDIR := src
 OUTDIR := build
 TMPDIR := $(OUTDIR)/tmp
+TARGET := $(OUTDIR)/hyper
 # CC := gcc
 CC := musl-gcc
 
 SRCS := main.c lexer.c parser.c
 
 
-CWARNS := -Wall -Wextra -pedantic \
+CWARNS := -Wall -Wextra \
 	-Wdeclaration-after-statement \
 	-Wmissing-prototypes \
+	-Wmissing-declarations \
 	-Wstrict-prototypes \
 	-Wunreachable-code \
 	-Wcomplain-wrong-lang \
@@ -19,21 +20,25 @@ CWARNS := -Wall -Wextra -pedantic \
 	-Wcast-qual \
 	-Wdisabled-optimization \
 	-Wpointer-arith \
-	-Wshadow \
+	-Wshadow=local \
 	-Wredundant-decls \
 	-Wsign-compare \
 	-Wundef \
 	-Wbad-function-cast \
-	-Wmissing-declarations \
-	-Wno-multichar
-	# -Wnested-externs \
-	# -Wwrite-strings \
-	# -Wno-macro-redefined \
+	-Wno-multichar \
+	-Wno-dangling-else
+	# -Winline
+	# -fmax-errors=10
+	# -Wnested-externs
+	# -Wwrite-strings
+	# -Wno-macro-redefined
+	# -pedantic
 
 
 # optimizations to speed up code for -Os
 # note, testing indicates that many of these may be rejected by -Os due to size assertions
-COPTIM := -Os -g0 \
+# COPTIM := -Os -g0
+COPTIM := -Os \
 	-flto \
 	-fno-pic \
 	-fgcse-after-reload \
@@ -65,9 +70,10 @@ COPTIM := -Os -g0 \
 	-ffunction-sections \
 	-fno-fat-lto-objects \
 	-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
-	# -fprefetch-loop-arrays \
+	# -fprefetch-loop-arrays
 
 
+# LOPTIM := -s
 LOPTIM := -s \
 	-flto \
 	-no-pie \
@@ -82,36 +88,43 @@ LOPTIM := -s \
 	-Wl,-z,common-page-size=4096 \
 	-Wl,--build-id=none \
 	-Wl,-z,noseparate-code \
-	-Wl,--relax
-	# -Wl,-z,stack-size=65536 \
+	-Wl,--relax \
+	-Wl,-s
+	# -Wl,--hash-style=gnu \
+	# -Wl,--omagic
+	# -Wl,-z,stack-size=65536
 
 
-CDEBUG := -g3 -O0 \
+CDEBUG := -g3 -Og \
 	-ftrivial-auto-var-init=pattern \
 	-fsanitize=address \
 	-fsanitize=undefined \
 	-fsanitize=leak \
 	-fstack-protector-all \
-	-fanalyzer \
+	-fanalyzer-verbosity=0 \
 	-fstack-usage
+	# -fanalyzer
 	# -fsanitize=thread
 
 LDEBUG := \
 	-fsanitize=address \
 	-fsanitize=undefined \
-	-fsanitize=leak
+	-fsanitize=leak \
+	-static-libasan \
+	-static-libubsan
 
 
 CCLIBS := -Ilib/toolbox/inc/
 LDLIBS :=
 
-CCFLAGS := -std=gnu17
+CCFLAGS := -std=gnu17 $(CWARNS) -ftrack-macro-expansion
 LDFLAGS :=
 # LDFLAGS := -static
 
 
-ifdef DEBUG
-	CCFLAGS += $(CDEBUG) $(CWARNS) -D__DEBUG__ -D__debug__
+ifdef DEBUG	
+	CC := gcc
+	CCFLAGS += $(CDEBUG) -D__DEBUG__ -D__debug__
 	LDFLAGS += $(LDEBUG)
 else
 	CCFLAGS += $(COPTIM)
@@ -126,7 +139,8 @@ OBJS := $(SRCS:%.c=$(TMPDIR)/%.o)
 DEPS := $(OBJS:.o=.d)
 
 
-$(OUTDIR)/$(TARGET): $(OBJS)
+# strip --remove-section=.comment
+$(TARGET): $(OBJS)
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
@@ -136,7 +150,16 @@ $(TMPDIR)/%.o: %.c
 
 -include $(DEPS)
 
+$(OBJS): Makefile
 
+
+
+
+fast:
+	make FAST=1
+
+debug:
+	make DEBUG=1
 
 clean:
 	rm -rf $(OUTDIR)
@@ -145,8 +168,12 @@ clean:
 clean-purge:
 	:
 
-# test:
-# 	./bin/hyperc --test ./src/lexer.c ./bin/test
+test:
+	# $(TARGET) --test ./src/lexer.c ./bin/test
+	./$(TARGET) ./src/lexer.c
+	./$(TARGET) ./test/benchmark.c
+	./$(TARGET) ./test/main.c
+	./$(TARGET) ./test/test.c
 
 # gdb:
 # 	gdb --args $(TEST_CMD)
@@ -161,7 +188,9 @@ clean-purge:
 # 	sudo perf report
 # 
 # benchmark:
+# 	nm -S --size-sort executable
 # 	objdump -h $(BINDIR)/$(TARGET)
+# 	readelf -S build/hyperc
 # 	readelf -SW $(BINDIR)/$(TARGET)
 # 	size $(BINDIR)/$(TARGET)
 # 	size -A $(BINDIR)/$(TARGET)
@@ -177,5 +206,5 @@ clean-purge:
 # sudo apt install musl musl-dev musl-tools
 
 
-.PHONY: all clean clean-purge test gdb 
+.PHONY: all fast debug clean clean-purge test gdb 
 .PHONY: makeprofile benchmark

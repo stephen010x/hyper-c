@@ -3,6 +3,7 @@
 /__tmp__/
 /bin/
 /old/
+/build/
 *.log
 *.o
 *.d

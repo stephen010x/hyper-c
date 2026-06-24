@@ -6,7 +6,6 @@
 #include <stdbool.h>
 
 #include "toolbox/macros.h"
-#include "toolbox/debug.h"
 
 
 
@@ -80,7 +79,7 @@ enum {
     KTOKEN_DECIMAL128,
 
     KTOKEN_LENGTH,
-    KTOKEN_INVALID = -1
+    KTOKEN_INVALID = (uint8_t)-1
 };
 typedef uint8_t ktoken_id_t;
 
@@ -151,7 +150,7 @@ enum {
     PTOKEN_BSLASH,
 
     PTOKEN_LENGTH,
-    PTOKEN_INVALID = -1
+    PTOKEN_INVALID = (uint8_t)-1
 };
 typedef uint8_t ptoken_id_t;
 
@@ -187,7 +186,7 @@ enum {
     
     CONST_FLOATING,
     CONST_INTEGER,
-    CONST_CHARACTER,
+    // CONST_CHARACTER,
     CONST_STRING,
     CONST_PREDEFINED,
     // TOKEN_STRING_LITERAL,
@@ -199,7 +198,10 @@ typedef uint8_t token_const_type_t;
 
 
 
+// NOTE: DEFAULT FLAGS MUST ALWAYS BE ZERO!!!
 enum {
+    TFLAG_DEFAULT = 0,
+
     // for strings/character encoding
     TFLAG_ENCC_MASK    = 0b111<<0,
     TFLAG_ENCC_DEFAULT = 0b000<<0,
@@ -207,6 +209,10 @@ enum {
     TFLAG_ENCC_UTF16   = 0b010<<0,
     TFLAG_ENCC_UTF32   = 0b011<<0,
     TFLAG_ENCC_WIDE    = 0b100<<0,
+
+    TFLAG_STRING_MASK = 0b1<<3,
+    TFLAG_STRING_S    = 0b0<<3,
+    TFLAG_STRING_C    = 0b1<<3,
 
     // for floats/integers
     TFLAG_BASE_MASK = 0b11<<0,
@@ -216,28 +222,41 @@ enum {
     TFLAG_BASE_BIN  = 0b11<<0,
 
     // for floats
-    TFLAG_FSUFFIX_MASK    = 0x1111<<8,
-    TFLAG_FSUFFIX_DEFAULT = 0x0001<<8,
-    TFLAG_FSUFFIX_FLOAT   = 0x0000<<8,
-    TFLAG_FSUFFIX_DOUBLE  = 0x0001<<8,
-    TFLAG_FSUFFIX_LONG    = 0x0010<<8,
-    TFLAG_FSUFFIX_DEC32   = 0x0011<<8,
-    TFLAG_FSUFFIX_DEC64   = 0x0100<<8,
-    TFLAG_FSUFFIX_DEC128  = 0x0101<<8,
+    TFLAG_FSUFFIX_MASK    = 0b1111<<8,
+    TFLAG_FSUFFIX_DEFAULT = 0b0000<<8,
+    TFLAG_FSUFFIX_DOUBLE  = 0b0000<<8,
+    TFLAG_FSUFFIX_FLOAT   = 0b0001<<8,
+    TFLAG_FSUFFIX_LONG    = 0b0010<<8,
+    TFLAG_FSUFFIX_DEC32   = 0b0011<<8,
+    TFLAG_FSUFFIX_DEC64   = 0b0100<<8,
+    TFLAG_FSUFFIX_DEC128  = 0b0101<<8,
 
     // for integers (indicates smallest type)
-    TFLAG_ISUFFIX_MASK    = 0x1111<<8,
-    TFLAG_ISUFFIX_DEFAULT = 0x0000<<8,
-    TFLAG_ISUFFIX_INT     = 0x0001<<8,
-    TFLAG_ISUFFIX_UINT    = 0x0010<<8,
-    TFLAG_ISUFFIX_LONG    = 0x0011<<8,
-    TFLAG_ISUFFIX_ULONG   = 0x0100<<8,
-    TFLAG_ISUFFIX_LLONG   = 0x0101<<8,
-    TFLAG_ISUFFIX_ULLONG  = 0x0110<<8,
-    TFLAG_ISUFFIX_WB      = 0x0111<<8,
-    TFLAG_ISUFFIX_UWB     = 0x1000<<8,
+    TFLAG_ISUFFIX_MASK    = 0b111<<8,
+    TFLAG_ISUFFIX_DEFAULT = 0b000<<8,
+    TFLAG_ISUFFIX_INT     = 0b000<<8,
+    TFLAG_ISUFFIX_LONG    = 0b001<<8,
+    TFLAG_ISUFFIX_LLONG   = 0b010<<8,
+    TFLAG_ISUFFIX_WB      = 0b011<<8,
+
+    TFLAG_IUNSIGN_MASK    = 0b1<<11,
+    TFLAG_IUNSIGN_DEFAULT = 0b0<<11,
+    TFLAG_IUNSIGN_FALSE   = 0b0<<11,
+    TFLAG_IUNSIGN_TRUE    = 0b1<<11,
+    
+    // TFLAG_ISUFFIX_MASK    = 0b1111<<8,
+    // TFLAG_ISUFFIX_DEFAULT = 0b0000<<8,
+    // TFLAG_ISUFFIX_INT     = 0b0001<<8,
+    // TFLAG_ISUFFIX_UINT    = 0b0010<<8,
+    // TFLAG_ISUFFIX_LONG    = 0b0011<<8,
+    // TFLAG_ISUFFIX_ULONG   = 0b0100<<8,
+    // TFLAG_ISUFFIX_LLONG   = 0b0101<<8,
+    // TFLAG_ISUFFIX_ULLONG  = 0b0110<<8,
+    // TFLAG_ISUFFIX_WB      = 0b0111<<8,
+    // TFLAG_ISUFFIX_UWB     = 0b1000<<8,
 };
 typedef uint16_t token_flags_t;
+
 
 
 
@@ -259,12 +278,27 @@ typedef struct {
 
 
 
+
 typedef struct {
-    token_t *tokens;
-    size_t tlen;
-    size_t talloc;
-    char *data;     // wat this for?
-} tokenlist_t;
+    const char *buff;
+    size_t index;
+    int line_index;
+    // int line, line_index;
+    int line, column;
+    const char *filename;
+    int filenamelen;
+    int flags;
+} clexstate_t;
+
+
+
+
+// typedef struct {
+//     token_t *tokens;
+//     size_t tlen;
+//     size_t talloc;
+//     char *data;     // wat this for?
+// } tokenlist_t;
 
 
 
@@ -305,38 +339,58 @@ __inline__ bool is_source(char c) {
 
 
 
+__inline__ bool is_uppercase(unsigned char c) {
+    return c-'A' <= 'Z'-'A';
+}
 
+__inline__ bool is_lowercase(unsigned char c) {
+    return c-'a' <= 'z'-'a';
+}
 
+__inline__ char to_uppercase(char c) {
+    if (is_lowercase(c)) return c-'a'+'A';
+    return c;
+}
 
-
-__inline__ int tokenlist_init(tokenlist_t *array, char* data) {
-    *array = (tokenlist_t){
-        .tokens = malloc(64*sizeof(token_t)),
-        .tlen = 0,
-        .talloc = 64,
-        .data = data,
-    };
-
-    return (array->tokens == NULL);
+__inline__ char to_lowercase(char c) {
+    if (is_uppercase(c)) return c-'A'+'a';
+    return c;
 }
 
 
-__inline__ void tokenlist_close(tokenlist_t *array) {
-    free(array->tokens);
-    free(array->data);
-    DEBUG( *array = (tokenlist_t){0}; );
-}
 
 
-__inline__ token_t *tokenlist_insert(tokenlist_t *restrict array, token_t *restrict token) {
 
-    token_t *newtoken = tokenlist_newtoken(array);
 
-    if (newtoken != NULL)
-        *newtoken = *token;
 
-    return newtoken;
-}
+// __inline__ int tokenlist_init(tokenlist_t *array, char* data) {
+//     *array = (tokenlist_t){
+//         .tokens = malloc(64*sizeof(token_t)),
+//         .tlen = 0,
+//         .talloc = 64,
+//         .data = data,
+//     };
+// 
+//     return (array->tokens == NULL);
+// }
+
+
+// __inline__ void tokenlist_close(tokenlist_t *array) {
+//     free(array->tokens);
+//     free(array->data);
+//     DEBUG( *array = (tokenlist_t){0}; );
+// }
+
+
+// __inline__ token_t *tokenlist_insert(tokenlist_t *restrict array, token_t *restrict token) {
+// 
+//     token_t *newtoken = tokenlist_newtoken(array);
+// 
+//     if (newtoken != NULL)
+//         *newtoken = *token;
+// 
+//     return newtoken;
+// }
 
 
 // __inline__ const char *get_token_name(token_t *token) {
@@ -349,9 +403,58 @@ __inline__ token_t *tokenlist_insert(tokenlist_t *restrict array, token_t *restr
 
 
 
-void next_token(token_t *restrict token, const char *restrict buff, size_t *restrict index);
-void print_token(token_t *token);
-void print_tokenlist(tokenlist_t *array);
+
+// __inline__ void clexer_init(clexstate_t *restrict state, const char *restrict buff) {
+//     *state = (clexstate_t){
+//         .buff = buff,
+//         .index = 0,
+//         .line = 0,
+//         .line_index = 0,
+//         .column = 0,
+//     };
+// }
+// 
+// 
+// 
+// 
+// __inline__ size_t reader_next(clexstate_t *state, int n) {
+//     int i;
+//     for (i = 0; state->buff[state->index+i] && (i < n); i++) {
+//         if (state->buff[state->index] == '\n') {
+//             state->line++;
+//             state->line_index = state->index;
+//             state->column = 0;
+//         } else {
+//             state->column++;
+//         }
+//     }
+//     // for (int i = 0; i > n; i--) {
+//     //     if (state->buff[state->index[0]] == '\n') {
+//     //         state->line--;
+//     //         state->column = -1;
+//     //     } else {
+//     //         state->column--;
+//     //     }
+//     // }
+//     return (state->index += i);
+// }
+
+
+
+
+TODO
+// TODO: fix the column number for tokens
+
+
+
+
+
+ktoken_id_t match_keyword(const char *str, int len);
+ptoken_id_t match_punctuator(const char *restrict str, int *restrict len);
+void next_token(clexstate_t *restrict state, token_t *restrict token);
+void print_token(const token_t *token, int i);
+// void print_tokenlist(tokenlist_t *array);
+void clexer_init(clexstate_t *restrict state, const char *restrict buff);
 
 
 
